@@ -8,8 +8,11 @@ package schema
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -24,6 +27,13 @@ import (
 var schemaFor = map[string]string{
 	"test-report.json": "test-report.schema.json",
 	"vuln-scan.json":   "vuln-scan.schema.json",
+	"exceptions.json":  "exceptions.schema.json",
+}
+
+// optional lists evidence files a project may leave out. A project with no
+// exceptions simply has no exceptions.json; that is not an error.
+var optional = map[string]bool{
+	"exceptions.json": true,
 }
 
 // Issue is one problem found in an evidence file.
@@ -116,6 +126,39 @@ func (v *Validator) Validate(fileName string, data []byte) ([]Issue, error) {
 	collectLeaves(verr, &issues)
 	sort.Slice(issues, func(i, j int) bool { return issues[i].Path < issues[j].Path })
 	return issues, nil
+}
+
+// FileResult is the outcome of validating one evidence file.
+type FileResult struct {
+	File   string
+	Issues []Issue // empty means valid
+}
+
+// ValidateDir validates every known evidence file in dir. A missing required
+// file is reported as an issue; a missing optional file is skipped and does
+// not appear in the result. The error is for I/O problems other than
+// "file not found", such as a permission error.
+func (v *Validator) ValidateDir(dir string) ([]FileResult, error) {
+	var results []FileResult
+	for _, name := range v.Files() {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			if optional[name] {
+				continue
+			}
+			results = append(results, FileResult{File: name, Issues: []Issue{{Message: "file is missing"}}})
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		issues, err := v.Validate(name, data)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, FileResult{File: name, Issues: issues})
+	}
+	return results, nil
 }
 
 var printer = message.NewPrinter(language.English)

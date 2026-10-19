@@ -29,14 +29,81 @@ func readSample(t *testing.T, dir, file string) []byte {
 func TestValidSamplesHaveNoIssues(t *testing.T) {
 	v := newValidator(t)
 	for _, dir := range []string{"pass", "fail"} {
-		for _, file := range v.Files() {
-			issues, err := v.Validate(file, readSample(t, dir, file))
-			if err != nil {
-				t.Fatalf("%s/%s: %v", dir, file, err)
+		results, err := v.ValidateDir(filepath.Join("..", "..", "samples", dir))
+		if err != nil {
+			t.Fatalf("%s: %v", dir, err)
+		}
+		for _, r := range results {
+			if len(r.Issues) > 0 {
+				t.Errorf("%s/%s: expected valid, got %v", dir, r.File, r.Issues)
 			}
-			if len(issues) > 0 {
-				t.Errorf("%s/%s: expected valid, got %v", dir, file, issues)
-			}
+		}
+	}
+}
+
+func TestExceptionsAreValidatedOnlyWhenPresent(t *testing.T) {
+	v := newValidator(t)
+	tests := []struct {
+		dir       string
+		wantFiles []string
+	}{
+		{"pass", []string{"exceptions.json", "test-report.json", "vuln-scan.json"}},
+		{"fail", []string{"test-report.json", "vuln-scan.json"}}, // has no exceptions.json
+	}
+	for _, tt := range tests {
+		results, err := v.ValidateDir(filepath.Join("..", "..", "samples", tt.dir))
+		if err != nil {
+			t.Fatalf("%s: %v", tt.dir, err)
+		}
+		var got []string
+		for _, r := range results {
+			got = append(got, r.File)
+		}
+		if strings.Join(got, ",") != strings.Join(tt.wantFiles, ",") {
+			t.Errorf("%s: validated %v, want %v", tt.dir, got, tt.wantFiles)
+		}
+	}
+}
+
+func TestMissingRequiredFileIsAnIssue(t *testing.T) {
+	v := newValidator(t)
+	dir := t.TempDir() // empty directory, removed automatically after the test
+	results, err := v.ValidateDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("want issues for the 2 required files, got %v", results)
+	}
+	for _, r := range results {
+		if len(r.Issues) != 1 || r.Issues[0].Message != "file is missing" {
+			t.Errorf("%s: got %v", r.File, r.Issues)
+		}
+	}
+}
+
+func TestExpiresMustBeACalendarDate(t *testing.T) {
+	v := newValidator(t)
+	tests := []struct {
+		expires string
+		valid   bool
+	}{
+		{"2026-12-31", true},
+		{"2028-02-29", true},            // leap day
+		{"2026-02-30", false},           // no such day
+		{"2026-1-5", false},             // needs two-digit month and day
+		{"31/12/2026", false},           // wrong order and separator
+		{"2026-12-31T00:00:00Z", false}, // a timestamp, not a date
+		{"", false},
+	}
+	for _, tt := range tests {
+		doc := `[{"cve": "CVE-1", "reason": "r", "approved_by": "a", "expires": "` + tt.expires + `"}]`
+		issues, err := v.Validate("exceptions.json", []byte(doc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotValid := len(issues) == 0; gotValid != tt.valid {
+			t.Errorf("expires %q: valid=%v, want %v (issues: %v)", tt.expires, gotValid, tt.valid, issues)
 		}
 	}
 }
@@ -60,6 +127,11 @@ func TestInvalidSamplesReportEachProblem(t *testing.T) {
 		{"vuln-scan.json", []string{
 			"/findings/0",          // unknown "score" property
 			"/findings/0/severity", // not in the enum
+		}},
+		{"exceptions.json", []string{
+			"/0/expires", // not YYYY-MM-DD
+			"/1",         // missing "approved_by", unknown "ticket"
+			"/1/reason",  // empty
 		}},
 	}
 
