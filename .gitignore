@@ -2,3 +2,5 @@
 !README.md
 .*
 !.gitignore
+!.github/
+!docs/*.md
