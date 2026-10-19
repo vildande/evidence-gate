@@ -156,7 +156,10 @@ func TestInvalidSamplesReportEachProblem(t *testing.T) {
 
 func TestMissingCommitIsNamed(t *testing.T) {
 	v := newValidator(t)
-	issues, _ := v.Validate("test-report.json", readSample(t, "invalid", "test-report.json"))
+	issues, err := v.Validate("test-report.json", readSample(t, "invalid", "test-report.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, is := range issues {
 		if is.Path == "" && strings.Contains(is.Message, "commit") {
 			return

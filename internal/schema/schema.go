@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -88,12 +90,7 @@ func New() (*Validator, error) {
 
 // Files returns the evidence file names that have a schema, in a stable order.
 func (v *Validator) Files() []string {
-	names := make([]string, 0, len(v.schemas))
-	for name := range v.schemas {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(v.schemas))
 }
 
 // Validate checks the contents of one evidence file. An empty result means
@@ -117,14 +114,16 @@ func (v *Validator) Validate(fileName string, data []byte) ([]Issue, error) {
 	if err == nil {
 		return nil, nil
 	}
-	verr, ok := err.(*jsonschema.ValidationError)
-	if !ok {
+	var verr *jsonschema.ValidationError
+	if !errors.As(err, &verr) {
 		return nil, err
 	}
 
 	var issues []Issue
 	collectLeaves(verr, &issues)
-	sort.Slice(issues, func(i, j int) bool { return issues[i].Path < issues[j].Path })
+	// Stable, so issues at the same path keep the library's order and the
+	// output is identical on every run.
+	sort.SliceStable(issues, func(i, j int) bool { return issues[i].Path < issues[j].Path })
 	return issues, nil
 }
 
