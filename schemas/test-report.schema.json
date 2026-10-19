@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vildande/evidence-gate/schemas/test-report.schema.json",
+  "title": "Test report",
+  "description": "Summary of one CI test run, produced by `evidence-gate collect`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "project", "commit", "generated_at", "summary", "coverage_percent", "failed_tests"],
+  "properties": {
+    "kind": { "const": "test-report" },
+    "project": { "type": "string", "minLength": 1 },
+    "commit": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "skipped"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "failed_tests": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

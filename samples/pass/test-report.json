@@ -1,0 +1,9 @@
+{
+  "kind": "test-report",
+  "project": "payments-service",
+  "commit": "3f9c2a1",
+  "generated_at": "2026-10-18T20:15:00Z",
+  "summary": { "total": 128, "passed": 126, "failed": 0, "skipped": 2 },
+  "coverage_percent": 86.1,
+  "failed_tests": []
+}

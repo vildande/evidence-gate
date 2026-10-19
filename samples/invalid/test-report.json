@@ -1,0 +1,8 @@
+{
+  "kind": "test-results",
+  "project": "payments-service",
+  "generated_at": "yesterday",
+  "summary": { "total": 128, "passed": 130, "failed": -2, "skipped": 0 },
+  "coverage_percent": 112.5,
+  "failed_tests": []
+}

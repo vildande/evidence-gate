@@ -1,0 +1,4 @@
+[
+  { "cve": "CVE-2026-5678", "reason": "Not reachable: feature disabled",
+    "approved_by": "security-team", "expires": "2026-12-31" }
+]

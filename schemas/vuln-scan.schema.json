@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vildande/evidence-gate/schemas/vuln-scan.schema.json",
+  "title": "Vulnerability scan",
+  "description": "Findings from a dependency or image vulnerability scanner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "project", "scanned_at", "findings"],
+  "properties": {
+    "kind": { "const": "vulnerability-scan" },
+    "project": { "type": "string", "minLength": 1 },
+    "scanned_at": { "type": "string", "format": "date-time" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "package", "installed_version", "fixed_version", "severity"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "package": { "type": "string", "minLength": 1 },
+          "installed_version": { "type": "string", "minLength": 1 },
+          "fixed_version": { "type": "string" },
+          "severity": { "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] }
+        }
+      }
+    }
+  }
+}
