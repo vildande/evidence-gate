@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vildande/evidence-gate/schemas/test-report.schema.json",
   "title": "Test report",
-  "description": "Summary of one CI test run, produced by `evidence-gate collect`.",
+  "description": "Summary of a CI test run",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "project", "commit", "generated_at", "summary", "coverage_percent", "failed_tests"],

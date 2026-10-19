@@ -9,15 +9,17 @@ import (
 	"testing"
 )
 
+// create a validator for each test
 func newValidator(t *testing.T) *Validator {
 	t.Helper()
-	v, err := New()
+	v, err := New() // create a new validator with the embedded schemas
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	return v
 }
 
+// read file from directory
 func readSample(t *testing.T, dir, file string) []byte {
 	t.Helper()
 	// Tests run with the package directory as the working directory.
@@ -27,6 +29,22 @@ func readSample(t *testing.T, dir, file string) []byte {
 	}
 	return data
 }
+
+///////////////////////
+// Tests (count = 10)//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TestValidSamplesHaveNoIssues — checks that pass and fail JSON files are valid.
+// TestExceptionsAreValidatedOnlyWhenPresent — checks that exceptions.json is processed when present, and not processed when absent.
+// TestMissingRequiredFileIsAnIssue — checks that missing required files produce "file is missing" issues.
+// TestMissingDirIsAnError — checks that a nonexistent directory returns the correct error.
+// TestFileInsteadOfDirIsAnError — checks that ValidateDir rejects a file instead of a directory.
+// TestExpiresMustBeACalendarDate — checks that expires accepts valid calendar dates and rejects invalid ones.
+// TestInvalidSamplesReportEachProblem — checks that invalid samples report issues at expected JSON value paths.
+// TestMissingCommitIsNamed — checks that a missing "commit" field is reported explicitly.
+// TestMalformedJSONIsAnIssue — checks that malformed JSON produces a validation issue, not a generic error.
+// TestUnknownFileIsAnError — checks that files without a registered schema return an error.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 func TestValidSamplesHaveNoIssues(t *testing.T) {
 	v := newValidator(t)
@@ -43,20 +61,23 @@ func TestValidSamplesHaveNoIssues(t *testing.T) {
 	}
 }
 
+
 func TestExceptionsAreValidatedOnlyWhenPresent(t *testing.T) {
 	v := newValidator(t)
-	tests := []struct {
+	tests := []struct { // 2 test cases
 		dir       string
 		wantFiles []string
 	}{
 		{"pass", []string{"exceptions.json", "test-report.json", "vuln-scan.json"}},
 		{"fail", []string{"test-report.json", "vuln-scan.json"}}, // has no exceptions.json
 	}
+
 	for _, tt := range tests {
-		results, err := v.ValidateDir(filepath.Join("..", "..", "samples", tt.dir))
+		results, err := v.ValidateDir(filepath.Join("..", "..", "samples", tt.dir)) // checks that validated filenames are the same as wanted
 		if err != nil {
 			t.Fatalf("%s: %v", tt.dir, err)
 		}
+		
 		var got []string
 		for _, r := range results {
 			got = append(got, r.File)
@@ -67,6 +88,7 @@ func TestExceptionsAreValidatedOnlyWhenPresent(t *testing.T) {
 	}
 }
 
+
 func TestMissingRequiredFileIsAnIssue(t *testing.T) {
 	v := newValidator(t)
 	dir := t.TempDir() // empty directory, removed automatically after the test
@@ -74,7 +96,7 @@ func TestMissingRequiredFileIsAnIssue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 2 {
+	if len(results) != 2 { // 2 because we require test-report and vuln-scan
 		t.Fatalf("want issues for the 2 required files, got %v", results)
 	}
 	for _, r := range results {
@@ -90,7 +112,7 @@ func TestMissingDirIsAnError(t *testing.T) {
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("want an error wrapping fs.ErrNotExist, got %v", err)
 	}
-	if !strings.HasPrefix(err.Error(), "evidence directory: stat ") {
+	if !strings.HasPrefix(err.Error(), "evidence directory: stat ") { // error message should start with "evidence directory: stat "
 		t.Errorf("unexpected message: %v", err)
 	}
 }
@@ -123,7 +145,8 @@ func TestExpiresMustBeACalendarDate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if gotValid := len(issues) == 0; gotValid != tt.valid {
+
+		if gotValid := len(issues) == 0; gotValid != tt.valid { // the test cases should have the expected result
 			t.Errorf("expires %q: valid=%v, want %v (issues: %v)", tt.expires, gotValid, tt.valid, issues)
 		}
 	}
@@ -132,8 +155,8 @@ func TestExpiresMustBeACalendarDate(t *testing.T) {
 func TestInvalidSamplesReportEachProblem(t *testing.T) {
 	v := newValidator(t)
 
-	// Each entry is a JSON pointer we expect to see flagged. Checking paths
-	// rather than exact messages keeps the test stable across library versions.
+	// Each entry is a JSON pointer we expect to see flagged.
+	// Checking paths rather than messages.
 	tests := []struct {
 		file      string
 		wantPaths []string
@@ -182,7 +205,7 @@ func TestMissingCommitIsNamed(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, is := range issues {
-		if is.Path == "" && strings.Contains(is.Message, "commit") {
+		if is.Path == "" && strings.Contains(is.Message, "commit") { // issue message must contain the word "commit"
 			return
 		}
 	}
@@ -191,7 +214,7 @@ func TestMissingCommitIsNamed(t *testing.T) {
 
 func TestMalformedJSONIsAnIssue(t *testing.T) {
 	v := newValidator(t)
-	issues, err := v.Validate("test-report.json", []byte(`{"kind": "test-report",`))
+	issues, err := v.Validate("test-report.json", []byte(`{"kind": "test-report",`)) // we give abruptly truncated JSON
 	if err != nil {
 		t.Fatalf("malformed JSON should be an issue, not an error: %v", err)
 	}

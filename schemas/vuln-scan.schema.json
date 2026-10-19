@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vildande/evidence-gate/schemas/vuln-scan.schema.json",
   "title": "Vulnerability scan",
-  "description": "Findings from a dependency or image vulnerability scanner.",
+  "description": "Findings from a vulnerability scanner",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "project", "scanned_at", "findings"],

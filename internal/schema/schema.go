@@ -1,9 +1,5 @@
-// Package schema checks evidence files against the bundled JSON Schemas.
-//
-// Validation runs before any policy is evaluated: a policy can only give a
-// trustworthy answer if the data it reads has the shape it expects. A typo
-// like "coverage_pct" would otherwise be silently missing and could make a
-// rule pass when it should fail.
+// Package schema validates evidence files against JSON Schemas before they are used by policies. 
+// Сatches missing fields, typos, and invalid values early.
 package schema
 
 import (
@@ -25,25 +21,25 @@ import (
 	"github.com/vildande/evidence-gate/schemas"
 )
 
-// schemaFor maps each evidence file name to the schema it must satisfy.
+// schemaFor maps each evidence file to the schema
 var schemaFor = map[string]string{
 	"test-report.json": "test-report.schema.json",
 	"vuln-scan.json":   "vuln-scan.schema.json",
 	"exceptions.json":  "exceptions.schema.json",
 }
 
-// optional lists evidence files a project may leave out. A project with no
-// exceptions simply has no exceptions.json; that is not an error.
+// optional evidence files. A project might not have exceptions, for example
 var optional = map[string]bool{
 	"exceptions.json": true,
 }
 
-// Issue is one problem found in an evidence file.
+// represents validation problem 
 type Issue struct {
-	Path    string // JSON pointer into the document, e.g. "/summary/failed"; "" for the whole file
+	Path    string	// path to value in json doc
 	Message string
 }
 
+// format issue to readable string
 func (i Issue) String() string {
 	if i.Path == "" {
 		return i.Message
@@ -51,35 +47,40 @@ func (i Issue) String() string {
 	return i.Path + ": " + i.Message
 }
 
-// Validator holds the compiled schemas. Compile once, validate many files.
+// stores already compiled schemas
 type Validator struct {
-	schemas map[string]*jsonschema.Schema // keyed by evidence file name
+	schemas map[string]*jsonschema.Schema // key is evidence file name, value is emebedded schema objects
 }
 
-// New compiles the schemas embedded in the binary.
+
+// create validator
 func New() (*Validator, error) {
-	c := jsonschema.NewCompiler()
-	// In draft 2020-12 "format" is only an annotation by default, which would
-	// let "generated_at": "yesterday" through. We want it enforced.
+	// third-party library that compiles and validates JSON schemas
+	c := jsonschema.NewCompiler() 
+
+	// reuse the format from the library, which has already format for "date-time" and "uri" and so on
 	c.AssertFormat()
 
 	v := &Validator{schemas: make(map[string]*jsonschema.Schema)}
 	for evidenceFile, schemaFile := range schemaFor {
-		data, err := fs.ReadFile(schemas.FS, schemaFile)
+		data, err := fs.ReadFile(schemas.FS, schemaFile) // read the embedded schema files
 		if err != nil {
 			return nil, fmt.Errorf("read schema %s: %w", schemaFile, err)
 		}
-		doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+
+		doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(data)) // parse the schema into a document (for the library to understand)
 		if err != nil {
 			return nil, fmt.Errorf("parse schema %s: %w", schemaFile, err)
 		}
-		// The compiler identifies schemas by URL; a fake file URL is enough
-		// because we never let it fetch anything from the network.
+
+		// the compiler identifies schemas by URL
 		url := "file:///schemas/" + schemaFile
 		if err := c.AddResource(url, doc); err != nil {
 			return nil, fmt.Errorf("add schema %s: %w", schemaFile, err)
 		}
-		compiled, err := c.Compile(url)
+
+		// prepare schemas, they will be used for validation
+		compiled, err := c.Compile(url) 
 		if err != nil {
 			return nil, fmt.Errorf("compile schema %s: %w", schemaFile, err)
 		}
@@ -88,60 +89,55 @@ func New() (*Validator, error) {
 	return v, nil
 }
 
-// Files returns the evidence file names that have a schema, in a stable order.
+// return names of evidence files, sorted by file name
 func (v *Validator) Files() []string {
 	return slices.Sorted(maps.Keys(v.schemas))
 }
 
-// Validate checks the contents of one evidence file. An empty result means
-// the file is valid. Malformed JSON is reported as an Issue, not an error,
-// because to the user it is the same kind of problem: bad evidence.
-// The error is only for misuse, such as a file name with no schema.
+
+// check the evidence file using the corresponding schema
 func (v *Validator) Validate(fileName string, data []byte) ([]Issue, error) {
+	// get schema
 	sch, ok := v.schemas[fileName]
 	if !ok {
 		return nil, fmt.Errorf("no schema for evidence file %q", fileName)
 	}
 
-	// UnmarshalJSON keeps numbers as json.Number, so the validator can tell
-	// 3 (integer) from 3.5 (not an integer) exactly.
+	// json -> document
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
 		return []Issue{{Message: "not valid JSON: " + err.Error()}}, nil
 	}
 
+	// validate document against schema. if no error, stop
 	err = sch.Validate(doc)
 	if err == nil {
 		return nil, nil
 	}
+
+	// if its validation error, continue, otherwise return the error
 	var verr *jsonschema.ValidationError
 	if !errors.As(err, &verr) {
 		return nil, err
 	}
 
+	// collect the errors from error tree, sort them by path
 	var issues []Issue
 	collectLeaves(verr, &issues)
-	// Stable, so issues at the same path keep the library's order and the
-	// output is identical on every run.
 	sort.SliceStable(issues, func(i, j int) bool { return issues[i].Path < issues[j].Path })
 	return issues, nil
 }
 
-// FileResult is the outcome of validating one evidence file.
+// outcome of validating a single file
 type FileResult struct {
 	File   string
-	Issues []Issue // empty means valid
+	Issues []Issue
 }
 
-// ValidateDir validates every known evidence file in dir. A missing required
-// file is reported as an issue; a missing optional file is skipped and does
-// not appear in the result. The error is for I/O problems other than
-// "file not found", such as a permission error, and for a dir that does not
-// exist or is not a directory.
+
+// validate all files in the directory 
 func (v *Validator) ValidateDir(dir string) ([]FileResult, error) {
-	// Check the directory first: a mistyped path would otherwise show up as
-	// "file is missing" for every file, which looks like bad evidence rather
-	// than a bad command line.
+	// check the directory exists and whether it is a directory
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, fmt.Errorf("evidence directory: %w", err)
@@ -150,32 +146,42 @@ func (v *Validator) ValidateDir(dir string) ([]FileResult, error) {
 		return nil, fmt.Errorf("evidence directory: %s is not a directory", dir)
 	}
 
+	// go through all the files for which we have schemas
 	var results []FileResult
-	for _, name := range v.Files() {
-		data, err := os.ReadFile(filepath.Join(dir, name))
+	for _, name := range v.Files() { 
+		data, err := os.ReadFile(filepath.Join(dir, name)) // read the evidence file in directory
+
+		// if not-found error, record and continue to next file. if file is optional, skip error
 		if errors.Is(err, fs.ErrNotExist) {
 			if optional[name] {
 				continue
 			}
-			results = append(results, FileResult{File: name, Issues: []Issue{{Message: "file is missing"}}})
+			results = append(results, FileResult{File: name, Issues: []Issue{{Message: "file is missing"}}}) 
 			continue
 		}
+
+		// if any other error, return it
 		if err != nil {
 			return nil, err
 		}
+
+		// validate the evidence file against the schema
 		issues, err := v.Validate(name, data)
 		if err != nil {
 			return nil, err
 		}
+
+		// add result for this file
 		results = append(results, FileResult{File: name, Issues: issues})
 	}
 	return results, nil
 }
 
+
+// setting the messages to English
 var printer = message.NewPrinter(language.English)
 
-// collectLeaves flattens the library's error tree. Inner nodes only say
-// "validation failed"; the leaves carry the specific, useful messages.
+// collect the errors from the error tree
 func collectLeaves(e *jsonschema.ValidationError, out *[]Issue) {
 	if len(e.Causes) == 0 {
 		*out = append(*out, Issue{
@@ -189,12 +195,12 @@ func collectLeaves(e *jsonschema.ValidationError, out *[]Issue) {
 	}
 }
 
-// pointer turns ["summary", "failed"] into "/summary/failed" (RFC 6901).
+// turns ["summary", "failed"] into "/summary/failed" 
 func pointer(tokens []string) string {
 	var sb strings.Builder
 	for _, t := range tokens {
-		t = strings.ReplaceAll(t, "~", "~0")
-		t = strings.ReplaceAll(t, "/", "~1")
+		t = strings.ReplaceAll(t, "~", "~0") // "~" -> "~0" (RFC 6901)
+		t = strings.ReplaceAll(t, "/", "~1") // "/" -> "~1" (RFC 6901)
 		sb.WriteString("/" + t)
 	}
 	return sb.String()

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vildande/evidence-gate/schemas/exceptions.schema.json",
   "title": "Vulnerability exceptions",
-  "description": "Approved, time-limited exceptions for HIGH findings. Optional file.",
+  "description": "Approved, time-limited exceptions",
   "type": "array",
   "items": {
     "type": "object",
