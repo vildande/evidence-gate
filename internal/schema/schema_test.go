@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,6 +81,25 @@ func TestMissingRequiredFileIsAnIssue(t *testing.T) {
 		if len(r.Issues) != 1 || r.Issues[0].Message != "file is missing" {
 			t.Errorf("%s: got %v", r.File, r.Issues)
 		}
+	}
+}
+
+func TestMissingDirIsAnError(t *testing.T) {
+	v := newValidator(t)
+	_, err := v.ValidateDir(filepath.Join(t.TempDir(), "sampels"))
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("want an error wrapping fs.ErrNotExist, got %v", err)
+	}
+	if !strings.HasPrefix(err.Error(), "evidence directory: stat ") {
+		t.Errorf("unexpected message: %v", err)
+	}
+}
+
+func TestFileInsteadOfDirIsAnError(t *testing.T) {
+	v := newValidator(t)
+	_, err := v.ValidateDir(filepath.Join("..", "..", "samples", "pass", "test-report.json"))
+	if err == nil || !strings.Contains(err.Error(), "is not a directory") {
+		t.Fatalf("want a not-a-directory error, got %v", err)
 	}
 }
 

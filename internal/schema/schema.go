@@ -136,8 +136,20 @@ type FileResult struct {
 // ValidateDir validates every known evidence file in dir. A missing required
 // file is reported as an issue; a missing optional file is skipped and does
 // not appear in the result. The error is for I/O problems other than
-// "file not found", such as a permission error.
+// "file not found", such as a permission error, and for a dir that does not
+// exist or is not a directory.
 func (v *Validator) ValidateDir(dir string) ([]FileResult, error) {
+	// Check the directory first: a mistyped path would otherwise show up as
+	// "file is missing" for every file, which looks like bad evidence rather
+	// than a bad command line.
+	info, err := os.Stat(dir)
+	if err != nil {
+		return nil, fmt.Errorf("evidence directory: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("evidence directory: %s is not a directory", dir)
+	}
+
 	var results []FileResult
 	for _, name := range v.Files() {
 		data, err := os.ReadFile(filepath.Join(dir, name))
