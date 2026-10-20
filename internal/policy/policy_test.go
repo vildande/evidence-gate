@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/opa/v1/tester"
+
+	"github.com/vildande/evidence-gate/policies"
 )
 
 const today = "2026-10-19"
@@ -68,6 +70,8 @@ func evalModules(t *testing.T, modules map[string]string) (Result, error) {
 // TestCompileErrorNamesTheFile — checks that a broken module fails to compile with its file name in the error.
 // TestMissingDenyIsAnError — checks that policies without deny rules are an error, not a silent PASS.
 // TestMissingWaivedIsAnError — checks that policies without a waived set are an error.
+// TestMissingRulesIsAnError — checks that policies without a rules list are an error.
+// TestBundledPoliciesMatchDir — checks that the policies embedded in the binary are the ones in policies/.
 // TestBadDenyShapeIsAnError — checks that a deny entry that is not an object is rejected.
 
 func TestRegoUnitTests(t *testing.T) {
@@ -115,6 +119,9 @@ func TestPassSampleIsWaived(t *testing.T) {
 	}}
 	if !slices.Equal(res.Waived, want) {
 		t.Errorf("waived\ngot  %v\nwant %v", res.Waived, want)
+	}
+	if res.Rules["TEST-002"] != "coverage 88.2% (≥ 80%)" || len(res.Rules) != 3 {
+		t.Errorf("rules: got %v", res.Rules)
 	}
 }
 
@@ -167,22 +174,43 @@ func TestCompileErrorNamesTheFile(t *testing.T) {
 }
 
 func TestMissingDenyIsAnError(t *testing.T) {
-	modules := map[string]string{"other.rego": "package evidencegate\n\nwaived := set()\n"}
+	modules := map[string]string{"other.rego": "package evidencegate\n\nwaived := set()\n\nrules := {}\n"}
 	if _, err := evalModules(t, modules); err == nil {
 		t.Error("expected an error when no deny rule exists")
 	}
 }
 
 func TestMissingWaivedIsAnError(t *testing.T) {
-	modules := map[string]string{"other.rego": "package evidencegate\n\ndeny := set()\n"}
+	modules := map[string]string{"other.rego": "package evidencegate\n\ndeny := set()\n\nrules := {}\n"}
 	if _, err := evalModules(t, modules); err == nil {
 		t.Error("expected an error when no waived rule exists")
 	}
 }
 
 func TestBadDenyShapeIsAnError(t *testing.T) {
-	modules := map[string]string{"bad.rego": "package evidencegate\n\ndeny contains \"just a string\"\n\nwaived := set()\n"}
+	modules := map[string]string{"bad.rego": "package evidencegate\n\ndeny contains \"just a string\"\n\nwaived := set()\n\nrules := {}\n"}
 	if _, err := evalModules(t, modules); err == nil {
 		t.Error("expected an error for a deny entry that is not an object")
+	}
+}
+
+func TestMissingRulesIsAnError(t *testing.T) {
+	modules := map[string]string{"other.rego": "package evidencegate\n\ndeny := set()\n\nwaived := set()\n"}
+	if _, err := evalModules(t, modules); err == nil {
+		t.Error("expected an error when no rules list exists")
+	}
+}
+
+func TestBundledPoliciesMatchDir(t *testing.T) {
+	bundled, err := LoadFS(policies.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onDisk, err := LoadDir(policiesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(bundled, onDisk) {
+		t.Errorf("bundled %v, on disk %v", slices.Sorted(maps.Keys(bundled)), slices.Sorted(maps.Keys(onDisk)))
 	}
 }

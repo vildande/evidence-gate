@@ -7,6 +7,13 @@ package evidencegate
 
 min_coverage := 80
 
+# every rule ID with the text shown when it passes, so check can list passing rules too
+rules := {
+	"TEST-001": "no failed tests",
+	"TEST-002": sprintf("coverage %v%% (≥ %v%%)", [input.test_report.coverage_percent, min_coverage]),
+	"TEST-003": "no skipped tests",
+}
+
 # TEST-001: no failed tests
 violation contains {
 	"rule": "TEST-001",

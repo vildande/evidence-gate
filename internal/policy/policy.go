@@ -19,8 +19,8 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 )
 
-// both sets in one query: violations that block, and violations that are waived
-const query = "deny := data.evidencegate.deny; waived := data.evidencegate.waived"
+// one query: violations that block, violations that are waived, and the list of all rules
+const query = "deny := data.evidencegate.deny; waived := data.evidencegate.waived; rules := data.evidencegate.rules"
 
 // a failed rule, as produced by a deny rule in Rego
 type Violation struct {
@@ -42,6 +42,7 @@ type Waived struct {
 type Result struct {
 	Deny   []Violation
 	Waived []Waived
+	Rules  map[string]string // rule ID -> text shown when the rule passes
 }
 
 // input for the OPA policies
@@ -58,7 +59,16 @@ type Engine struct {
 
 // read all .rego files in dir, except *_test.rego
 func LoadDir(dir string) (map[string]string, error) {
-	paths, err := filepath.Glob(filepath.Join(dir, "*.rego")) // find all .rego files in the directory
+	modules, err := LoadFS(os.DirFS(dir))
+	if err != nil {
+		return nil, fmt.Errorf("policies %s: %w", dir, err)
+	}
+	return modules, nil
+}
+
+// same as LoadDir, for any file system, e.g. the policies embedded in the binary
+func LoadFS(fsys fs.FS) (map[string]string, error) {
+	paths, err := fs.Glob(fsys, "*.rego") // find all .rego files in the directory
 	if err != nil {
 		return nil, err
 	}
@@ -70,16 +80,16 @@ func LoadDir(dir string) (map[string]string, error) {
 		}
 
 		// read the file and add it to the map
-		src, err := os.ReadFile(p)
+		src, err := fs.ReadFile(fsys, p)
 		if err != nil {
 			return nil, err
 		}
-		modules[filepath.Base(p)] = string(src)
+		modules[p] = string(src)
 	}
 
 	// no policies found
 	if len(modules) == 0 {
-		return nil, fmt.Errorf("policies: no .rego files in %s", dir)
+		return nil, errors.New("no .rego files")
 	}
 	return modules, nil
 }
@@ -114,9 +124,9 @@ func (e *Engine) Eval(ctx context.Context, in Input) (Result, error) {
 		return Result{}, err
 	}
 
-	// no results means deny or waived is missing
+	// no results means deny, waived or rules is missing
 	if len(rs) == 0 {
-		return Result{}, errors.New("policies: package evidencegate must define deny and waived")
+		return Result{}, errors.New("policies: package evidencegate must define deny, waived and rules")
 	}
 
 	var res Result
@@ -125,6 +135,9 @@ func (e *Engine) Eval(ctx context.Context, in Input) (Result, error) {
 	}
 	if err := fromOPA(rs[0].Bindings["waived"], &res.Waived); err != nil {
 		return Result{}, fmt.Errorf("policies: waived must contain {rule, message, approved_by, reason, expires} objects: %w", err)
+	}
+	if err := fromOPA(rs[0].Bindings["rules"], &res.Rules); err != nil {
+		return Result{}, fmt.Errorf("policies: rules must map rule IDs to text: %w", err)
 	}
 
 	slices.SortFunc(res.Deny, func(a, b Violation) int { // sort violations by rule, then message, then fix

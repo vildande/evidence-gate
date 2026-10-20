@@ -35,6 +35,29 @@ test_clean_input_passes if {
 	count(evidencegate.waived) == 0 with input as inp
 }
 
+# rules
+
+test_rules_list_every_rule if {
+	inp := gate_input(good_report, [])
+	rules := evidencegate.rules with input as inp
+	rules == {
+		"TEST-001": "no failed tests",
+		"TEST-002": "coverage 85% (≥ 80%)",
+		"TEST-003": "no skipped tests",
+	}
+}
+
+# a new rule must be added to rules too, or check could not list it as passing
+test_every_violation_is_in_rules if {
+	inp := gate_input(object.union(report(1, ["TestA"], 50), {"skipped_tests": ["TestB"]}), [])
+	violations := evidencegate.violation with input as inp
+	rules := evidencegate.rules with input as inp
+	count(violations) == 3
+	every v in violations {
+		v.rule in object.keys(rules)
+	}
+}
+
 # TEST-001
 
 test_test001_passes_with_no_failed_tests if {
