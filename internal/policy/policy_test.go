@@ -36,21 +36,21 @@ func newEngine(t *testing.T) *Engine {
 }
 
 // evaluate the sample directory, using the policies
-func evalSample(t *testing.T, dir, now string) []Violation {
+func evalSample(t *testing.T, dir, now string) Result {
 	t.Helper()
 	in, err := ReadInput(sampleDir(dir), now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	violations, err := newEngine(t).Eval(context.Background(), in)
+	res, err := newEngine(t).Eval(context.Background(), in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return violations
+	return res
 }
 
 // evaluate the modules with minimal input (just the now date)
-func evalModules(t *testing.T, modules map[string]string) ([]Violation, error) {
+func evalModules(t *testing.T, modules map[string]string) (Result, error) {
 	t.Helper()
 	e, err := Compile(context.Background(), modules)
 	if err != nil {
@@ -62,11 +62,12 @@ func evalModules(t *testing.T, modules map[string]string) ([]Violation, error) {
 // TestRegoUnitTests — runs policies/gate_test.rego through the OPA SDK, same as `opa test policies/`.
 // TestLoadDirSkipsTestFiles — checks that *_test.rego files are not loaded as policies.
 // TestLoadDirWithoutPoliciesIsAnError — checks that an empty policy directory is an error, not a silent PASS.
-// TestPassSampleHasNoViolations — checks that samples/pass passes all rules.
+// TestPassSampleIsWaived — checks that samples/pass passes, with its TEST-003 violation listed as waived.
 // TestFailSampleViolations — checks that samples/fail fails TEST-001, TEST-002 and TEST-003 with fix hints.
-// TestExpiredExceptionBlocks — checks that the pass sample fails TEST-003 once its exception has expired.
+// TestExpiredWaiverBlocks — checks that the pass sample fails TEST-003 once its waiver has expired.
 // TestCompileErrorNamesTheFile — checks that a broken module fails to compile with its file name in the error.
 // TestMissingDenyIsAnError — checks that policies without deny rules are an error, not a silent PASS.
+// TestMissingWaivedIsAnError — checks that policies without a waived set are an error.
 // TestBadDenyShapeIsAnError — checks that a deny entry that is not an object is rejected.
 
 func TestRegoUnitTests(t *testing.T) {
@@ -100,14 +101,25 @@ func TestLoadDirWithoutPoliciesIsAnError(t *testing.T) {
 	}
 }
 
-func TestPassSampleHasNoViolations(t *testing.T) {
-	if v := evalSample(t, "pass", today); len(v) != 0 {
-		t.Errorf("want no violations, got %v", v)
+func TestPassSampleIsWaived(t *testing.T) {
+	res := evalSample(t, "pass", today)
+	if len(res.Deny) != 0 {
+		t.Errorf("want no deny, got %v", res.Deny)
+	}
+	want := []Waived{{
+		Rule:       "TEST-003",
+		Message:    "1 skipped test(s)",
+		ApprovedBy: "qa-lead",
+		Reason:     "Rates API sandbox is down, tracked in #12",
+		Expires:    "2099-12-31",
+	}}
+	if !slices.Equal(res.Waived, want) {
+		t.Errorf("waived\ngot  %v\nwant %v", res.Waived, want)
 	}
 }
 
 func TestFailSampleViolations(t *testing.T) {
-	got := evalSample(t, "fail", today)
+	res := evalSample(t, "fail", today)
 	want := []Violation{
 		{
 			Rule:    "TEST-001",
@@ -116,25 +128,31 @@ func TestFailSampleViolations(t *testing.T) {
 		},
 		{
 			Rule:    "TEST-002",
-			Message: "coverage 72% is below 80%",
+			Message: "coverage 72% (< 80%)",
 			Fix:     "raise coverage from 72% to at least 80%",
 		},
 		{
 			Rule:    "TEST-003",
-			Message: "skipped test TestQuoteLiveRates has no valid exception",
-			Fix:     "un-skip TestQuoteLiveRates, or add an exception with reason, approver, expiry",
+			Message: "1 skipped test(s)",
+			Fix:     "un-skip tests: TestQuoteLiveRates",
 		},
 	}
-	if !slices.Equal(got, want) {
-		t.Errorf("got  %v\nwant %v", got, want)
+	if !slices.Equal(res.Deny, want) {
+		t.Errorf("got  %v\nwant %v", res.Deny, want)
+	}
+	if len(res.Waived) != 0 { // the fail sample has no waivers.json
+		t.Errorf("want nothing waived, got %v", res.Waived)
 	}
 }
 
-func TestExpiredExceptionBlocks(t *testing.T) {
-	// the pass sample's exception for TestQuoteLiveRates expires on 2026-12-31
-	got := evalSample(t, "pass", "2027-01-01")
-	if len(got) != 1 || got[0].Rule != "TEST-003" || !strings.Contains(got[0].Message, "TestQuoteLiveRates") {
-		t.Errorf("want one TEST-003 violation for TestQuoteLiveRates, got %v", got)
+func TestExpiredWaiverBlocks(t *testing.T) {
+	// the pass sample's TEST-003 waiver expires on 2099-12-31
+	res := evalSample(t, "pass", "2100-01-01")
+	if len(res.Deny) != 1 || res.Deny[0].Rule != "TEST-003" {
+		t.Errorf("want one TEST-003 violation, got %v", res.Deny)
+	}
+	if len(res.Waived) != 0 {
+		t.Errorf("want nothing waived, got %v", res.Waived)
 	}
 }
 
@@ -149,14 +167,21 @@ func TestCompileErrorNamesTheFile(t *testing.T) {
 }
 
 func TestMissingDenyIsAnError(t *testing.T) {
-	modules := map[string]string{"other.rego": "package evidencegate\n\nallow := true\n"}
+	modules := map[string]string{"other.rego": "package evidencegate\n\nwaived := set()\n"}
 	if _, err := evalModules(t, modules); err == nil {
 		t.Error("expected an error when no deny rule exists")
 	}
 }
 
+func TestMissingWaivedIsAnError(t *testing.T) {
+	modules := map[string]string{"other.rego": "package evidencegate\n\ndeny := set()\n"}
+	if _, err := evalModules(t, modules); err == nil {
+		t.Error("expected an error when no waived rule exists")
+	}
+}
+
 func TestBadDenyShapeIsAnError(t *testing.T) {
-	modules := map[string]string{"bad.rego": "package evidencegate\n\ndeny contains \"just a string\"\n"}
+	modules := map[string]string{"bad.rego": "package evidencegate\n\ndeny contains \"just a string\"\n\nwaived := set()\n"}
 	if _, err := evalModules(t, modules); err == nil {
 		t.Error("expected an error for a deny entry that is not an object")
 	}

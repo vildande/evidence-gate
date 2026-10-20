@@ -1,0 +1,6 @@
+[
+  { "rule": "coverage", "reason": "Rates API sandbox is down",
+    "approved_by": "qa-lead", "expires": "31/12/2026" },
+  { "rule": "TEST-002", "reason": "",
+    "expires": "2026-12-31", "ticket": "QA-42" }
+]

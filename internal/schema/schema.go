@@ -24,12 +24,12 @@ import (
 // schemaFor maps each evidence file to the schema
 var schemaFor = map[string]string{
 	"test-report.json": "test-report.schema.json",
-	"exceptions.json":  "exceptions.schema.json",
+	"waivers.json":     "waivers.schema.json",
 }
 
-// optional evidence files. A project might not have exceptions, for example
+// optional evidence files. A project might not have waivers, for example
 var optional = map[string]bool{
-	"exceptions.json": true,
+	"waivers.json": true,
 }
 
 // represents validation problem 

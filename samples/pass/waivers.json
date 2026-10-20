@@ -1,0 +1,4 @@
+[
+  { "rule": "TEST-003", "reason": "Rates API sandbox is down, tracked in #12",
+    "approved_by": "qa-lead", "expires": "2099-12-31" }
+]

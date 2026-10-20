@@ -16,22 +16,23 @@ report(failed, names, coverage) := {
 # report with skipped tests
 skipped(names) := object.union(good_report, {"skipped_tests": names})
 
-exception(test, expires) := {"test": test, "reason": "r", "approved_by": "qa-lead", "expires": expires}
+waiver(rule, expires) := {"rule": rule, "reason": "r", "approved_by": "qa-lead", "expires": expires}
 
-gate_input(tr, exceptions) := {
+gate_input(tr, waivers) := {
 	"test_report": tr,
-	"exceptions": exceptions,
+	"waivers": waivers,
 	"now": "2026-10-19",
 }
 
 good_report := report(0, [], 85)
 
 # set of rule IDs that fired
-fired(deny) := {v.rule | some v in deny}
+fired(set) := {v.rule | some v in set}
 
 test_clean_input_passes if {
-	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-12-31")])
+	inp := gate_input(good_report, [])
 	count(evidencegate.deny) == 0 with input as inp
+	count(evidencegate.waived) == 0 with input as inp
 }
 
 # TEST-001
@@ -64,52 +65,76 @@ test_test002_shows_current_and_required if {
 	deny := evidencegate.deny with input as inp
 	some v in deny
 	v.rule == "TEST-002"
+	v.message == "coverage 72.5% (< 80%)"
 	v.fix == "raise coverage from 72.5% to at least 80%"
 }
 
 # TEST-003
 
-test_test003_passes_with_valid_exception if {
-	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-12-31")])
+test_test003_passes_with_no_skipped_tests if {
+	inp := gate_input(good_report, [])
 	deny := evidencegate.deny with input as inp
 	not "TEST-003" in fired(deny)
 }
 
-test_test003_fails_without_exception if {
-	inp := gate_input(skipped(["TestA"]), [])
+test_test003_lists_skipped_tests if {
+	inp := gate_input(skipped(["TestA", "TestB"]), [])
 	deny := evidencegate.deny with input as inp
 	some v in deny
 	v.rule == "TEST-003"
-	v.message == "skipped test TestA has no valid exception"
-	v.fix == "un-skip TestA, or add an exception with reason, approver, expiry"
+	v.message == "2 skipped test(s)"
+	v.fix == "un-skip tests: TestA, TestB"
 }
 
-test_test003_fails_with_expired_exception if {
-	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-10-01")])
+# waivers
+
+test_valid_waiver_passes_and_shows_as_waived if {
+	inp := gate_input(report(0, [], 75), [waiver("TEST-002", "2026-10-27")])
 	deny := evidencegate.deny with input as inp
-	"TEST-003" in fired(deny)
+	waived := evidencegate.waived with input as inp
+	count(deny) == 0
+	waived == {{
+		"rule": "TEST-002",
+		"message": "coverage 75% (< 80%)",
+		"approved_by": "qa-lead",
+		"reason": "r",
+		"expires": "2026-10-27",
+	}}
 }
 
-test_test003_fails_when_exception_expires_today if {
-	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-10-19")])
+test_expired_waiver_blocks if {
+	inp := gate_input(report(0, [], 75), [waiver("TEST-002", "2026-10-01")])
 	deny := evidencegate.deny with input as inp
-	"TEST-003" in fired(deny)
+	waived := evidencegate.waived with input as inp
+	"TEST-002" in fired(deny)
+	count(waived) == 0
 }
 
-test_test003_exception_for_other_test_does_not_count if {
-	inp := gate_input(skipped(["TestA"]), [exception("TestB", "2026-12-31")])
+test_waiver_expiring_today_blocks if {
+	inp := gate_input(report(0, [], 75), [waiver("TEST-002", "2026-10-19")])
 	deny := evidencegate.deny with input as inp
-	"TEST-003" in fired(deny)
+	"TEST-002" in fired(deny)
 }
 
-test_test003_one_violation_per_unexcepted_skip if {
-	inp := gate_input(skipped(["TestA", "TestB", "TestC"]), [exception("TestB", "2026-12-31")])
+test_waiver_for_another_rule_does_not_apply if {
+	inp := gate_input(report(0, [], 75), [waiver("TEST-001", "2026-12-31")])
 	deny := evidencegate.deny with input as inp
-	count({v | some v in deny; v.rule == "TEST-003"}) == 2
+	waived := evidencegate.waived with input as inp
+	"TEST-002" in fired(deny)
+	count(waived) == 0
 }
 
-test_exceptions_do_not_waive_failed_tests if {
-	inp := gate_input(report(1, ["TestA"], 85), [exception("TestA", "2026-12-31")])
+test_waiver_covers_only_its_rule if {
+	inp := gate_input(report(1, ["TestA"], 75), [waiver("TEST-002", "2026-12-31")])
 	deny := evidencegate.deny with input as inp
-	"TEST-001" in fired(deny)
+	waived := evidencegate.waived with input as inp
+	fired(deny) == {"TEST-001"}
+	fired(waived) == {"TEST-002"}
+}
+
+test_each_matching_waiver_shows_in_waived if {
+	waivers := [waiver("TEST-002", "2026-10-27"), object.union(waiver("TEST-002", "2026-11-30"), {"approved_by": "cto"})]
+	inp := gate_input(report(0, [], 75), waivers)
+	waived := evidencegate.waived with input as inp
+	{w.approved_by | some w in waived} == {"qa-lead", "cto"}
 }

@@ -1,13 +1,14 @@
-# gate rules. each rule adds a violation to deny; empty deny = PASS
+# gate rules. each rule adds to violation; violations without a valid waiver go to deny.
+# empty deny = PASS
 #
-# input: {"test_report", "exceptions", "now"}
+# input: {"test_report", "waivers", "now"}
 # now is a "YYYY-MM-DD" date passed in by the caller, so results never depend on the clock
 package evidencegate
 
 min_coverage := 80
 
-# TEST-001: no failed tests. exceptions do not apply: failing tests always block
-deny contains {
+# TEST-001: no failed tests
+violation contains {
 	"rule": "TEST-001",
 	"message": sprintf("%d failed test(s)", [input.test_report.summary.failed]),
 	"fix": sprintf("fix failing tests: %s", [concat(", ", input.test_report.failed_tests)]),
@@ -16,29 +17,52 @@ deny contains {
 }
 
 # TEST-002: coverage >= min_coverage
-deny contains {
+violation contains {
 	"rule": "TEST-002",
-	"message": sprintf("coverage %v%% is below %v%%", [cov, min_coverage]),
+	"message": sprintf("coverage %v%% (< %v%%)", [cov, min_coverage]),
 	"fix": sprintf("raise coverage from %v%% to at least %v%%", [cov, min_coverage]),
 } if {
 	cov := input.test_report.coverage_percent
 	cov < min_coverage
 }
 
-# TEST-003: each skipped test needs an exception that has not expired yet
-deny contains {
+# TEST-003: no skipped tests
+violation contains {
 	"rule": "TEST-003",
-	"message": sprintf("skipped test %s has no valid exception", [name]),
-	"fix": sprintf("un-skip %s, or add an exception with reason, approver, expiry", [name]),
+	"message": sprintf("%d skipped test(s)", [count(input.test_report.skipped_tests)]),
+	"fix": sprintf("un-skip tests: %s", [concat(", ", input.test_report.skipped_tests)]),
 } if {
-	some name in input.test_report.skipped_tests
-	not has_valid_exception(name)
+	count(input.test_report.skipped_tests) > 0
+}
+
+# violations that block the PR
+deny contains v if {
+	some v in violation
+	not has_valid_waiver(v.rule)
+}
+
+# violations that pass because of a waiver, kept visible for auditors.
+# one entry per matching waiver, so every approval that applies is shown
+waived contains {
+	"rule": v.rule,
+	"message": v.message,
+	"approved_by": w.approved_by,
+	"reason": w.reason,
+	"expires": w.expires,
+} if {
+	some v in violation
+	some w in valid_waivers
+	w.rule == v.rule
 }
 
 # "YYYY-MM-DD" strings sort like dates, so plain string comparison works.
-# an exception that expires today is already expired
-has_valid_exception(test) if {
-	some e in input.exceptions
-	e.test == test
-	e.expires > input.now
+# a waiver that expires today is already expired
+valid_waivers contains w if {
+	some w in input.waivers
+	w.expires > input.now
+}
+
+has_valid_waiver(rule) if {
+	some w in valid_waivers
+	w.rule == rule
 }

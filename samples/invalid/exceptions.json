@@ -1,6 +1,0 @@
-[
-  { "test": "TestQuoteLiveRates", "reason": "Rates API sandbox is down",
-    "approved_by": "qa-lead", "expires": "31/12/2026" },
-  { "test": "TestExportPDF", "reason": "",
-    "expires": "2026-12-31", "ticket": "QA-42" }
-]

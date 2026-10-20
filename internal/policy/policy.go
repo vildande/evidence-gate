@@ -19,8 +19,8 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 )
 
-// set of violations produced by the rules
-const query = "data.evidencegate.deny"
+// both sets in one query: violations that block, and violations that are waived
+const query = "deny := data.evidencegate.deny; waived := data.evidencegate.waived"
 
 // a failed rule, as produced by a deny rule in Rego
 type Violation struct {
@@ -29,10 +29,25 @@ type Violation struct {
 	Fix     string `json:"fix"`
 }
 
+// a failed rule that passes because of a valid waiver
+type Waived struct {
+	Rule       string `json:"rule"`
+	Message    string `json:"message"`
+	ApprovedBy string `json:"approved_by"`
+	Reason     string `json:"reason"`
+	Expires    string `json:"expires"`
+}
+
+// outcome of the policies. empty Deny = PASS, even if some rules are waived
+type Result struct {
+	Deny   []Violation
+	Waived []Waived
+}
+
 // input for the OPA policies
 type Input struct {
 	TestReport any    `json:"test_report"`
-	Exceptions any    `json:"exceptions"`
+	Waivers    any    `json:"waivers"`
 	Now        string `json:"now"` // date of now, "YYYY-MM-DD"
 }
 
@@ -92,57 +107,73 @@ func Compile(ctx context.Context, modules map[string]string) (*Engine, error) {
 
 
 // evaluate the policies on an input.
-// get violations that are sorted by rule.
-func (e *Engine) Eval(ctx context.Context, in Input) ([]Violation, error) {
+// get deny and waived, both sorted by rule.
+func (e *Engine) Eval(ctx context.Context, in Input) (Result, error) {
 	rs, err := e.query.Eval(ctx, rego.EvalInput(in)) // run th query with the input
 	if err != nil {
-		return nil, err
+		return Result{}, err
 	}
 
-	// no results means no dery rules
-	if len(rs) == 0 || len(rs[0].Expressions) == 0 {
-		return nil, errors.New("policies: no deny rules found in package evidencegate")
+	// no results means deny or waived is missing
+	if len(rs) == 0 {
+		return Result{}, errors.New("policies: package evidencegate must define deny and waived")
 	}
 
-	// result OPA -> json
-	raw, err := json.Marshal(rs[0].Expressions[0].Value)
-	if err != nil {
-		return nil, err
+	var res Result
+	if err := fromOPA(rs[0].Bindings["deny"], &res.Deny); err != nil {
+		return Result{}, fmt.Errorf("policies: deny must contain {rule, message, fix} objects: %w", err)
 	}
-	var violations []Violation
-	if err := json.Unmarshal(raw, &violations); err != nil { //json -> violations (if cannot transorm, then error)
-		return nil, fmt.Errorf("policies: deny must contain {rule, message, fix} objects: %w", err)
+	if err := fromOPA(rs[0].Bindings["waived"], &res.Waived); err != nil {
+		return Result{}, fmt.Errorf("policies: waived must contain {rule, message, approved_by, reason, expires} objects: %w", err)
 	}
 
-	slices.SortFunc(violations, func(a, b Violation) int { // sort violations by rule, then message, then fix
+	slices.SortFunc(res.Deny, func(a, b Violation) int { // sort violations by rule, then message, then fix
 		return cmp.Or(
 			cmp.Compare(a.Rule, b.Rule),
 			cmp.Compare(a.Message, b.Message),
 			cmp.Compare(a.Fix, b.Fix),
 		)
 	})
-	return violations, nil
+	slices.SortFunc(res.Waived, func(a, b Waived) int { // same rule can have several waivers, so compare every field
+		return cmp.Or(
+			cmp.Compare(a.Rule, b.Rule),
+			cmp.Compare(a.Message, b.Message),
+			cmp.Compare(a.Expires, b.Expires),
+			cmp.Compare(a.ApprovedBy, b.ApprovedBy),
+			cmp.Compare(a.Reason, b.Reason),
+		)
+	})
+	return res, nil
+}
+
+// result OPA -> json -> Go struct (if cannot transform, then error)
+func fromOPA(v any, out any) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, out)
 }
 
 // build the policy input from an evidence directory.
 // call AFTER schema validation, which guarantees the files exist and have the right shape
 func ReadInput(dir, now string) (Input, error) {
-	in := Input{Now: now, Exceptions: []any{}} // exceptions might be missing
+	in := Input{Now: now, Waivers: []any{}} // waivers might be missing
 
 	var err error
 	if in.TestReport, err = readJSON(filepath.Join(dir, "test-report.json")); err != nil { // read. no test-report, then error
 		return Input{}, err
 	}
 
-	// if exceptions exists add, otherwise leave empty
-	exc, err := readJSON(filepath.Join(dir, "exceptions.json"))
+	// if waivers exists add, otherwise leave empty
+	w, err := readJSON(filepath.Join(dir, "waivers.json"))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		// optional file
 	case err != nil:
 		return Input{}, err
 	default:
-		in.Exceptions = exc
+		in.Waivers = w
 	}
 	return in, nil
 }

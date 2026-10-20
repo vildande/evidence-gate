@@ -31,14 +31,15 @@ func readSample(t *testing.T, dir, file string) []byte {
 }
 
 ///////////////////////
-// Tests (count = 10)//
+// Tests (count = 11)//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // TestValidSamplesHaveNoIssues — checks that pass and fail JSON files are valid.
-// TestExceptionsAreValidatedOnlyWhenPresent — checks that exceptions.json is processed when present, and not processed when absent.
+// TestWaiversAreValidatedOnlyWhenPresent — checks that waivers.json is processed when present, and not processed when absent.
 // TestMissingRequiredFileIsAnIssue — checks that missing required files produce "file is missing" issues.
 // TestMissingDirIsAnError — checks that a nonexistent directory returns the correct error.
 // TestFileInsteadOfDirIsAnError — checks that ValidateDir rejects a file instead of a directory.
 // TestExpiresMustBeACalendarDate — checks that expires accepts valid calendar dates and rejects invalid ones.
+// TestWaiverRuleMustBeARuleID — checks that a waiver rule must look like "TEST-002".
 // TestInvalidSamplesReportEachProblem — checks that invalid samples report issues at expected JSON value paths.
 // TestMissingCommitIsNamed — checks that a missing "commit" field is reported explicitly.
 // TestMalformedJSONIsAnIssue — checks that malformed JSON produces a validation issue, not a generic error.
@@ -62,14 +63,14 @@ func TestValidSamplesHaveNoIssues(t *testing.T) {
 }
 
 
-func TestExceptionsAreValidatedOnlyWhenPresent(t *testing.T) {
+func TestWaiversAreValidatedOnlyWhenPresent(t *testing.T) {
 	v := newValidator(t)
 	tests := []struct { // 2 test cases
 		dir       string
 		wantFiles []string
 	}{
-		{"pass", []string{"exceptions.json", "test-report.json"}},
-		{"fail", []string{"test-report.json"}}, // has no exceptions.json
+		{"pass", []string{"test-report.json", "waivers.json"}},
+		{"fail", []string{"test-report.json"}}, // has no waivers.json
 	}
 
 	for _, tt := range tests {
@@ -140,14 +141,40 @@ func TestExpiresMustBeACalendarDate(t *testing.T) {
 		{"", false},
 	}
 	for _, tt := range tests {
-		doc := `[{"test": "TestA", "reason": "r", "approved_by": "a", "expires": "` + tt.expires + `"}]`
-		issues, err := v.Validate("exceptions.json", []byte(doc))
+		doc := `[{"rule": "TEST-001", "reason": "r", "approved_by": "a", "expires": "` + tt.expires + `"}]`
+		issues, err := v.Validate("waivers.json", []byte(doc))
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if gotValid := len(issues) == 0; gotValid != tt.valid { // the test cases should have the expected result
 			t.Errorf("expires %q: valid=%v, want %v (issues: %v)", tt.expires, gotValid, tt.valid, issues)
+		}
+	}
+}
+
+func TestWaiverRuleMustBeARuleID(t *testing.T) {
+	v := newValidator(t)
+	tests := []struct {
+		rule  string
+		valid bool
+	}{
+		{"TEST-002", true},
+		{"SEC-101", true},
+		{"test-002", false},  // lowercase
+		{"TEST-02", false},   // needs three digits
+		{"TEST-0021", false}, // too many digits
+		{"TEST002", false},   // missing dash
+		{"", false},
+	}
+	for _, tt := range tests {
+		doc := `[{"rule": "` + tt.rule + `", "reason": "r", "approved_by": "a", "expires": "2026-12-31"}]`
+		issues, err := v.Validate("waivers.json", []byte(doc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotValid := len(issues) == 0; gotValid != tt.valid {
+			t.Errorf("rule %q: valid=%v, want %v (issues: %v)", tt.rule, gotValid, tt.valid, issues)
 		}
 	}
 }
@@ -169,7 +196,8 @@ func TestInvalidSamplesReportEachProblem(t *testing.T) {
 			"/coverage_percent", // above 100
 			"/skipped_tests/0",  // empty test name
 		}},
-		{"exceptions.json", []string{
+		{"waivers.json", []string{
+			"/0/rule",    // not a rule ID
 			"/0/expires", // not YYYY-MM-DD
 			"/1",         // missing "approved_by", unknown "ticket"
 			"/1/reason",  // empty
