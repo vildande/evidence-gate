@@ -15,6 +15,8 @@ import (
 // TestCheckSummaryAppends — checks that --summary appends Markdown instead of overwriting the file.
 // TestCheckPoliciesDir — checks that --policies loads policies from a directory.
 // TestCheckBrokenPolicyIsAnError — checks that a policy that does not compile exits 2.
+// TestCollectThenCheck — checks the full flow: collect writes a report that check accepts (pass, fail, build failure).
+// TestCollectErrors — checks that missing flags and unreadable inputs exit 2.
 // TestUsageErrors — checks exit codes for no command, unknown command, missing --evidence and -h.
 // TestVersion — checks that version prints the version.
 
@@ -162,5 +164,90 @@ func TestVersion(t *testing.T) {
 	code, stdout, _ := runCLI(t, "version")
 	if code != exitPass || stdout != "evidence-gate dev\n" {
 		t.Errorf("exit %d, stdout %q", code, stdout)
+	}
+}
+
+// write a file in dir and return its path
+func writeFile(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestCollectThenCheck(t *testing.T) {
+	const pkg = "example.com/app"
+	tests := []struct {
+		name     string
+		testJSON string
+		profile  string
+		want     int
+		wantLine string
+	}{
+		{
+			name:     "all pass",
+			testJSON: `{"Action":"pass","Package":"` + pkg + `","Test":"TestA"}` + "\n" + `{"Action":"pass","Package":"` + pkg + `"}`,
+			profile:  "mode: set\na.go:1.1,2.1 9 1\na.go:3.1,4.1 1 0\n",
+			want:     exitPass,
+			wantLine: "RESULT: PASS\n",
+		},
+		{
+			name:     "failing test",
+			testJSON: `{"Action":"fail","Package":"` + pkg + `","Test":"TestA"}` + "\n" + `{"Action":"fail","Package":"` + pkg + `"}`,
+			profile:  "mode: set\na.go:1.1,2.1 9 1\na.go:3.1,4.1 1 0\n",
+			want:     exitFail,
+			wantLine: "fix: fix failing tests: app.TestA\n",
+		},
+		{
+			name:     "build failure",
+			testJSON: `{"Action":"fail","Package":"` + pkg + `","FailedBuild":"` + pkg + `"}`,
+			profile:  "mode: set\n",
+			want:     exitFail,
+			wantLine: "fix: fix failing tests: app [build failed]\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			testJSON := writeFile(t, dir, "test.json", tt.testJSON)
+			profile := writeFile(t, dir, "coverage.out", tt.profile)
+			evidence := filepath.Join(dir, "evidence")
+
+			code, stdout, stderr := runCLI(t, "collect", "--test-json", testJSON, "--coverage", profile,
+				"--project", "demo-app", "--commit", "abc1234", "--out", filepath.Join(evidence, "test-report.json"))
+			if code != exitPass { // collect succeeds even when tests failed
+				t.Fatalf("collect: exit %d\n%s%s", code, stdout, stderr)
+			}
+
+			code, stdout, stderr = runCLI(t, "check", "--evidence", evidence)
+			if code != tt.want || !strings.Contains(stdout, tt.wantLine) {
+				t.Errorf("check: exit %d, want %d; want %q in:\n%s%s", code, tt.want, tt.wantLine, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestCollectErrors(t *testing.T) {
+	dir := t.TempDir()
+	testJSON := writeFile(t, dir, "test.json", `{"Action":"pass","Package":"p","Test":"TestA"}`)
+	profile := writeFile(t, dir, "coverage.out", "mode: set\n")
+	out := filepath.Join(dir, "test-report.json")
+
+	tests := [][]string{
+		{"collect"},
+		{"collect", "--test-json", testJSON, "--coverage", profile, "--project", "p", "--out", out}, // no --commit
+		{"collect", "--test-json", filepath.Join(dir, "nope.json"), "--coverage", profile, "--project", "p", "--commit", "c", "--out", out},
+		{"collect", "--test-json", profile, "--coverage", profile, "--project", "p", "--commit", "c", "--out", out}, // not JSON
+	}
+	for _, args := range tests {
+		if code, _, _ := runCLI(t, args...); code != exitError {
+			t.Errorf("%v: exit %d, want 2", args[1:], code)
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("a failed collect must not write a report")
 	}
 }

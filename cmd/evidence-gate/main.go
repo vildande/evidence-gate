@@ -1,5 +1,6 @@
 // evidence-gate checks CI evidence against JSON Schemas and Rego policies.
 //
+//	evidence-gate collect --test-json f --coverage f --project p --commit c --out f
 //	evidence-gate check --evidence dir [--policies dir] [--json] [--summary file]
 //	evidence-gate version
 //
@@ -24,6 +25,7 @@ const (
 var version = "dev"
 
 const usage = `usage:
+  evidence-gate collect --test-json f --coverage f --project p --commit c --out f
   evidence-gate check --evidence dir [--policies dir] [--json] [--summary file]
   evidence-gate version
 `
@@ -40,6 +42,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	switch args[0] {
+	case "collect":
+		return runCollect(args[1:], stdout, stderr)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
 	case "version":
