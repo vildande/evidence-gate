@@ -19,43 +19,42 @@ import (
 	"github.com/open-policy-agent/opa/v1/rego"
 )
 
-// query asks for the set of violations produced by all deny rules
+// set of violations produced by the rules
 const query = "data.evidencegate.deny"
 
-// one failed rule, as produced by a deny rule in Rego
+// a failed rule, as produced by a deny rule in Rego
 type Violation struct {
 	Rule    string `json:"rule"`
 	Message string `json:"message"`
 	Fix     string `json:"fix"`
 }
 
-// the document policies see as `input`. evidence is kept as parsed JSON (any),
-// so policies read exactly what is in the files
+// input for the OPA policies
 type Input struct {
 	TestReport any    `json:"test_report"`
-	VulnScan   any    `json:"vuln_scan"`
 	Exceptions any    `json:"exceptions"`
-	Now        string `json:"now"` // "YYYY-MM-DD"
+	Now        string `json:"now"` // date of now, "YYYY-MM-DD"
 }
 
-// compiled policies, ready to evaluate many inputs
+// contains ready-to-use OPA query
 type Engine struct {
 	query rego.PreparedEvalQuery
 }
 
-// read all .rego files in dir, except *_test.rego.
-// returns file name -> source, so callers can add a draft module before compiling
+// read all .rego files in dir, except *_test.rego
 func LoadDir(dir string) (map[string]string, error) {
-	paths, err := filepath.Glob(filepath.Join(dir, "*.rego"))
+	paths, err := filepath.Glob(filepath.Join(dir, "*.rego")) // find all .rego files in the directory
 	if err != nil {
 		return nil, err
 	}
 
 	modules := make(map[string]string)
 	for _, p := range paths {
-		if strings.HasSuffix(p, "_test.rego") {
+		if strings.HasSuffix(p, "_test.rego") { // skip test files
 			continue
 		}
+
+		// read the file and add it to the map
 		src, err := os.ReadFile(p)
 		if err != nil {
 			return nil, err
@@ -63,26 +62,27 @@ func LoadDir(dir string) (map[string]string, error) {
 		modules[filepath.Base(p)] = string(src)
 	}
 
-	// no policies would mean every check passes, so treat it as an error
+	// no policies found
 	if len(modules) == 0 {
 		return nil, fmt.Errorf("policies: no .rego files in %s", dir)
 	}
 	return modules, nil
 }
 
-// compile the modules. a compile error names the file and line
+// prepare the OPA query
 func Compile(ctx context.Context, modules map[string]string) (*Engine, error) {
+
 	opts := []func(*rego.Rego){
-		rego.Query(query),
-		// a builtin error (e.g. sprintf on a missing field) must stop the check.
-		// by default OPA treats it as "rule not matched", which would silently pass
-		rego.StrictBuiltinErrors(true),
-	}
-	// sorted, so compile errors come out in the same order every run
-	for _, name := range slices.Sorted(maps.Keys(modules)) {
-		opts = append(opts, rego.Module(name, modules[name]))
+		rego.Query(query), // we add our query
+		rego.StrictBuiltinErrors(true), // use sctrict errors
 	}
 
+	// sorted by filename
+	for _, name := range slices.Sorted(maps.Keys(modules)) {
+		opts = append(opts, rego.Module(name, modules[name])) // add the module
+	}
+
+	// prepare the query for eval 
 	q, err := rego.New(opts...).PrepareForEval(ctx)
 	if err != nil {
 		return nil, err
@@ -90,30 +90,31 @@ func Compile(ctx context.Context, modules map[string]string) (*Engine, error) {
 	return &Engine{query: q}, nil
 }
 
-// evaluate the policies on one input. violations are sorted by rule, then message
+
+// evaluate the policies on an input.
+// get violations that are sorted by rule.
 func (e *Engine) Eval(ctx context.Context, in Input) ([]Violation, error) {
-	rs, err := e.query.Eval(ctx, rego.EvalInput(in))
+	rs, err := e.query.Eval(ctx, rego.EvalInput(in)) // run th query with the input
 	if err != nil {
 		return nil, err
 	}
 
-	// no result means the package or deny rule is missing, not that everything passed
+	// no results means no dery rules
 	if len(rs) == 0 || len(rs[0].Expressions) == 0 {
 		return nil, errors.New("policies: no deny rules found in package evidencegate")
 	}
 
-	// OPA returns generic JSON values; a round trip through JSON turns them into
-	// Violations and rejects any deny entry that has the wrong shape
+	// result OPA -> json
 	raw, err := json.Marshal(rs[0].Expressions[0].Value)
 	if err != nil {
 		return nil, err
 	}
 	var violations []Violation
-	if err := json.Unmarshal(raw, &violations); err != nil {
+	if err := json.Unmarshal(raw, &violations); err != nil { //json -> violations (if cannot transorm, then error)
 		return nil, fmt.Errorf("policies: deny must contain {rule, message, fix} objects: %w", err)
 	}
 
-	slices.SortFunc(violations, func(a, b Violation) int {
+	slices.SortFunc(violations, func(a, b Violation) int { // sort violations by rule, then message, then fix
 		return cmp.Or(
 			cmp.Compare(a.Rule, b.Rule),
 			cmp.Compare(a.Message, b.Message),
@@ -124,18 +125,16 @@ func (e *Engine) Eval(ctx context.Context, in Input) ([]Violation, error) {
 }
 
 // build the policy input from an evidence directory.
-// call after schema validation, which guarantees the files exist and have the right shape
+// call AFTER schema validation, which guarantees the files exist and have the right shape
 func ReadInput(dir, now string) (Input, error) {
-	in := Input{Now: now, Exceptions: []any{}} // no exceptions.json = no exceptions
+	in := Input{Now: now, Exceptions: []any{}} // exceptions might be missing
 
 	var err error
-	if in.TestReport, err = readJSON(filepath.Join(dir, "test-report.json")); err != nil {
-		return Input{}, err
-	}
-	if in.VulnScan, err = readJSON(filepath.Join(dir, "vuln-scan.json")); err != nil {
+	if in.TestReport, err = readJSON(filepath.Join(dir, "test-report.json")); err != nil { // read. no test-report, then error
 		return Input{}, err
 	}
 
+	// if exceptions exists add, otherwise leave empty
 	exc, err := readJSON(filepath.Join(dir, "exceptions.json"))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -148,16 +147,18 @@ func ReadInput(dir, now string) (Input, error) {
 	return in, nil
 }
 
-// UseNumber keeps numbers as written (86.1 stays 86.1), instead of float64
+
+
 func readJSON(path string) (any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
+
+	dec := json.NewDecoder(bytes.NewReader(data)) // decoder: data -> JSON
+	dec.UseNumber() // UseNumber keeps numbers as written (86.1 stays 86.1), instead of float64
 	var v any
-	if err := dec.Decode(&v); err != nil {
+	if err := dec.Decode(&v); err != nil { // decode data -> JSON
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return v, nil

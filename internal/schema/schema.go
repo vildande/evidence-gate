@@ -24,7 +24,6 @@ import (
 // schemaFor maps each evidence file to the schema
 var schemaFor = map[string]string{
 	"test-report.json": "test-report.schema.json",
-	"vuln-scan.json":   "vuln-scan.schema.json",
 	"exceptions.json":  "exceptions.schema.json",
 }
 

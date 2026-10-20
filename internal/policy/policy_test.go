@@ -11,40 +11,31 @@ import (
 	"github.com/open-policy-agent/opa/v1/tester"
 )
 
-// Tests:
-// TestRegoUnitTests — runs policies/gate_test.rego through the OPA SDK, same as `opa test policies/`.
-// TestLoadDirSkipsTestFiles — checks that *_test.rego files are not loaded as policies.
-// TestLoadDirWithoutPoliciesIsAnError — checks that an empty policy directory is an error, not a silent PASS.
-// TestPassSampleHasNoViolations — checks that samples/pass passes all rules.
-// TestFailSampleViolations — checks that samples/fail fails TEST-002 and VULN-001 with fix hints.
-// TestExpiredExceptionBlocks — checks that the pass sample fails VULN-002 once its exception has expired.
-// TestCompileErrorNamesTheFile — checks that a broken module fails to compile with its file name in the error.
-// TestMissingDenyIsAnError — checks that policies without deny rules are an error, not a silent PASS.
-// TestBadDenyShapeIsAnError — checks that a deny entry that is not an object is rejected.
-
 const today = "2026-10-19"
-
 var policiesDir = filepath.Join("..", "..", "policies")
 
-func sampleDir(name string) string {
+// dir for sample with jsons
+func sampleDir(name string) string { // for example, "../../samples/pass" or "../../samples/fail"
 	return filepath.Join("..", "..", "samples", name)
 }
 
-// load and compile the bundled policies
+// load and compile the policies
 func newEngine(t *testing.T) *Engine {
 	t.Helper()
 	modules, err := LoadDir(policiesDir)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	e, err := Compile(context.Background(), modules)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return e
 }
 
-// evaluate the bundled policies on a sample directory
+// evaluate the sample directory, using the policies
 func evalSample(t *testing.T, dir, now string) []Violation {
 	t.Helper()
 	in, err := ReadInput(sampleDir(dir), now)
@@ -58,7 +49,7 @@ func evalSample(t *testing.T, dir, now string) []Violation {
 	return violations
 }
 
-// compile modules that are expected to compile, then evaluate an empty input
+// evaluate the modules with minimal input (just the now date)
 func evalModules(t *testing.T, modules map[string]string) ([]Violation, error) {
 	t.Helper()
 	e, err := Compile(context.Background(), modules)
@@ -67,6 +58,16 @@ func evalModules(t *testing.T, modules map[string]string) ([]Violation, error) {
 	}
 	return e.Eval(context.Background(), Input{Now: today})
 }
+
+// TestRegoUnitTests — runs policies/gate_test.rego through the OPA SDK, same as `opa test policies/`.
+// TestLoadDirSkipsTestFiles — checks that *_test.rego files are not loaded as policies.
+// TestLoadDirWithoutPoliciesIsAnError — checks that an empty policy directory is an error, not a silent PASS.
+// TestPassSampleHasNoViolations — checks that samples/pass passes all rules.
+// TestFailSampleViolations — checks that samples/fail fails TEST-001, TEST-002 and TEST-003 with fix hints.
+// TestExpiredExceptionBlocks — checks that the pass sample fails TEST-003 once its exception has expired.
+// TestCompileErrorNamesTheFile — checks that a broken module fails to compile with its file name in the error.
+// TestMissingDenyIsAnError — checks that policies without deny rules are an error, not a silent PASS.
+// TestBadDenyShapeIsAnError — checks that a deny entry that is not an object is rejected.
 
 func TestRegoUnitTests(t *testing.T) {
 	results, err := tester.Run(context.Background(), policiesDir)
@@ -109,14 +110,19 @@ func TestFailSampleViolations(t *testing.T) {
 	got := evalSample(t, "fail", today)
 	want := []Violation{
 		{
+			Rule:    "TEST-001",
+			Message: "1 failed test(s)",
+			Fix:     "fix failing tests: TestCalculate/fixed_discount",
+		},
+		{
 			Rule:    "TEST-002",
 			Message: "coverage 72% is below 80%",
 			Fix:     "raise coverage from 72% to at least 80%",
 		},
 		{
-			Rule:    "VULN-001",
-			Message: "critical vulnerability CVE-2026-1234 in openssl 3.0.8",
-			Fix:     "upgrade openssl to >= 3.0.12",
+			Rule:    "TEST-003",
+			Message: "skipped test TestQuoteLiveRates has no valid exception",
+			Fix:     "un-skip TestQuoteLiveRates, or add an exception with reason, approver, expiry",
 		},
 	}
 	if !slices.Equal(got, want) {
@@ -125,20 +131,20 @@ func TestFailSampleViolations(t *testing.T) {
 }
 
 func TestExpiredExceptionBlocks(t *testing.T) {
-	// the pass sample's exception for CVE-2026-5678 expires on 2026-12-31
+	// the pass sample's exception for TestQuoteLiveRates expires on 2026-12-31
 	got := evalSample(t, "pass", "2027-01-01")
-	if len(got) != 1 || got[0].Rule != "VULN-002" || !strings.Contains(got[0].Message, "CVE-2026-5678") {
-		t.Errorf("want one VULN-002 violation for CVE-2026-5678, got %v", got)
+	if len(got) != 1 || got[0].Rule != "TEST-003" || !strings.Contains(got[0].Message, "TestQuoteLiveRates") {
+		t.Errorf("want one TEST-003 violation for TestQuoteLiveRates, got %v", got)
 	}
 }
 
 func TestCompileErrorNamesTheFile(t *testing.T) {
 	modules := map[string]string{
-		"draft.rego": "package evidencegate\n\ndeny contains x if {\n", // unclosed brace
+		"broken.rego": "package evidencegate\n\ndeny contains x if {\n", // unclosed brace
 	}
 	_, err := Compile(context.Background(), modules)
-	if err == nil || !strings.Contains(err.Error(), "draft.rego") {
-		t.Errorf("want a compile error naming draft.rego, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "broken.rego") {
+		t.Errorf("want a compile error naming broken.rego, got %v", err)
 	}
 }
 

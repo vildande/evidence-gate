@@ -1,9 +1,10 @@
 {
   "kind": "test-report",
-  "project": "payments-service",
+  "project": "demo-app",
   "commit": "8b1d07e",
   "generated_at": "2026-10-18T21:02:00Z",
-  "summary": { "total": 128, "passed": 126, "failed": 0, "skipped": 2 },
+  "summary": { "total": 25, "passed": 23, "failed": 1, "skipped": 1 },
   "coverage_percent": 72.0,
-  "failed_tests": []
+  "failed_tests": ["TestCalculate/fixed_discount"],
+  "skipped_tests": ["TestQuoteLiveRates"]
 }

@@ -1,6 +1,6 @@
 [
-  { "cve": "CVE-2026-5678", "reason": "Not reachable: feature disabled",
-    "approved_by": "security-team", "expires": "31/12/2026" },
-  { "cve": "CVE-2026-3301", "reason": "",
-    "expires": "2026-12-31", "ticket": "SEC-42" }
+  { "test": "TestQuoteLiveRates", "reason": "Rates API sandbox is down",
+    "approved_by": "qa-lead", "expires": "31/12/2026" },
+  { "test": "TestExportPDF", "reason": "",
+    "expires": "2026-12-31", "ticket": "QA-42" }
 ]

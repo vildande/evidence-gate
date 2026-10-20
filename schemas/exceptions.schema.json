@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vildande/evidence-gate/schemas/exceptions.schema.json",
-  "title": "Vulnerability exceptions",
-  "description": "Approved, time-limited exceptions",
+  "title": "Test exceptions",
+  "description": "Approved, time-limited exceptions for skipped tests",
   "type": "array",
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["cve", "reason", "approved_by", "expires"],
+    "required": ["test", "reason", "approved_by", "expires"],
     "properties": {
-      "cve": { "type": "string", "minLength": 1 },
+      "test": { "type": "string", "minLength": 1 },
       "reason": { "type": "string", "minLength": 1 },
       "approved_by": { "type": "string", "minLength": 1 },
       "expires": { "type": "string", "format": "date" }

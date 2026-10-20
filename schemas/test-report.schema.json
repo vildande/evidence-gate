@@ -5,7 +5,7 @@
   "description": "Summary of a CI test run",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "project", "commit", "generated_at", "summary", "coverage_percent", "failed_tests"],
+  "required": ["kind", "project", "commit", "generated_at", "summary", "coverage_percent", "failed_tests", "skipped_tests"],
   "properties": {
     "kind": { "const": "test-report" },
     "project": { "type": "string", "minLength": 1 },
@@ -24,6 +24,10 @@
     },
     "coverage_percent": { "type": "number", "minimum": 0, "maximum": 100 },
     "failed_tests": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "skipped_tests": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     }

@@ -1,4 +1,4 @@
 [
-  { "cve": "CVE-2026-5678", "reason": "Not reachable: feature disabled",
-    "approved_by": "security-team", "expires": "2026-12-31" }
+  { "test": "TestQuoteLiveRates", "reason": "Rates API sandbox is down, tracked in #12",
+    "approved_by": "qa-lead", "expires": "2026-12-31" }
 ]

@@ -68,8 +68,8 @@ func TestExceptionsAreValidatedOnlyWhenPresent(t *testing.T) {
 		dir       string
 		wantFiles []string
 	}{
-		{"pass", []string{"exceptions.json", "test-report.json", "vuln-scan.json"}},
-		{"fail", []string{"test-report.json", "vuln-scan.json"}}, // has no exceptions.json
+		{"pass", []string{"exceptions.json", "test-report.json"}},
+		{"fail", []string{"test-report.json"}}, // has no exceptions.json
 	}
 
 	for _, tt := range tests {
@@ -96,8 +96,8 @@ func TestMissingRequiredFileIsAnIssue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 2 { // 2 because we require test-report and vuln-scan
-		t.Fatalf("want issues for the 2 required files, got %v", results)
+	if len(results) != 1 { // 1 because only test-report is required
+		t.Fatalf("want an issue for the 1 required file, got %v", results)
 	}
 	for _, r := range results {
 		if len(r.Issues) != 1 || r.Issues[0].Message != "file is missing" {
@@ -140,7 +140,7 @@ func TestExpiresMustBeACalendarDate(t *testing.T) {
 		{"", false},
 	}
 	for _, tt := range tests {
-		doc := `[{"cve": "CVE-1", "reason": "r", "approved_by": "a", "expires": "` + tt.expires + `"}]`
+		doc := `[{"test": "TestA", "reason": "r", "approved_by": "a", "expires": "` + tt.expires + `"}]`
 		issues, err := v.Validate("exceptions.json", []byte(doc))
 		if err != nil {
 			t.Fatal(err)
@@ -167,10 +167,7 @@ func TestInvalidSamplesReportEachProblem(t *testing.T) {
 			"/generated_at",     // not RFC 3339
 			"/summary/failed",   // negative count
 			"/coverage_percent", // above 100
-		}},
-		{"vuln-scan.json", []string{
-			"/findings/0",          // unknown "score" property
-			"/findings/0/severity", // not in the enum
+			"/skipped_tests/0",  // empty test name
 		}},
 		{"exceptions.json", []string{
 			"/0/expires", // not YYYY-MM-DD

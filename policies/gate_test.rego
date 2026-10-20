@@ -10,19 +10,16 @@ report(failed, names, coverage) := {
 	"summary": {"total": 10, "passed": 10 - failed, "failed": failed, "skipped": 0},
 	"coverage_percent": coverage,
 	"failed_tests": names,
+	"skipped_tests": [],
 }
 
-finding(id, pkg, severity) := {
-	"id": id, "package": pkg,
-	"installed_version": "1.0.0", "fixed_version": "1.0.1",
-	"severity": severity,
-}
+# report with skipped tests
+skipped(names) := object.union(good_report, {"skipped_tests": names})
 
-exception(cve, expires) := {"cve": cve, "reason": "r", "approved_by": "security-team", "expires": expires}
+exception(test, expires) := {"test": test, "reason": "r", "approved_by": "qa-lead", "expires": expires}
 
-gate_input(tr, findings, exceptions) := {
+gate_input(tr, exceptions) := {
 	"test_report": tr,
-	"vuln_scan": {"findings": findings},
 	"exceptions": exceptions,
 	"now": "2026-10-19",
 }
@@ -33,20 +30,20 @@ good_report := report(0, [], 85)
 fired(deny) := {v.rule | some v in deny}
 
 test_clean_input_passes if {
-	inp := gate_input(good_report, [finding("CVE-1", "zlib", "LOW")], [])
+	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-12-31")])
 	count(evidencegate.deny) == 0 with input as inp
 }
 
 # TEST-001
 
 test_test001_passes_with_no_failed_tests if {
-	inp := gate_input(good_report, [], [])
+	inp := gate_input(good_report, [])
 	deny := evidencegate.deny with input as inp
 	not "TEST-001" in fired(deny)
 }
 
 test_test001_lists_failing_tests if {
-	inp := gate_input(report(2, ["TestA", "TestB"], 85), [], [])
+	inp := gate_input(report(2, ["TestA", "TestB"], 85), [])
 	deny := evidencegate.deny with input as inp
 	some v in deny
 	v.rule == "TEST-001"
@@ -57,81 +54,62 @@ test_test001_lists_failing_tests if {
 # TEST-002
 
 test_test002_passes_at_exactly_80 if {
-	inp := gate_input(report(0, [], 80), [], [])
+	inp := gate_input(report(0, [], 80), [])
 	deny := evidencegate.deny with input as inp
 	not "TEST-002" in fired(deny)
 }
 
 test_test002_shows_current_and_required if {
-	inp := gate_input(report(0, [], 72.5), [], [])
+	inp := gate_input(report(0, [], 72.5), [])
 	deny := evidencegate.deny with input as inp
 	some v in deny
 	v.rule == "TEST-002"
 	v.fix == "raise coverage from 72.5% to at least 80%"
 }
 
-# VULN-001
+# TEST-003
 
-test_vuln001_passes_without_critical if {
-	inp := gate_input(good_report, [finding("CVE-1", "zlib", "MEDIUM")], [])
+test_test003_passes_with_valid_exception if {
+	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-12-31")])
 	deny := evidencegate.deny with input as inp
-	not "VULN-001" in fired(deny)
+	not "TEST-003" in fired(deny)
 }
 
-test_vuln001_suggests_upgrade if {
-	inp := gate_input(good_report, [finding("CVE-1", "openssl", "CRITICAL")], [])
+test_test003_fails_without_exception if {
+	inp := gate_input(skipped(["TestA"]), [])
 	deny := evidencegate.deny with input as inp
 	some v in deny
-	v.rule == "VULN-001"
-	v.message == "critical vulnerability CVE-1 in openssl 1.0.0"
-	v.fix == "upgrade openssl to >= 1.0.1"
+	v.rule == "TEST-003"
+	v.message == "skipped test TestA has no valid exception"
+	v.fix == "un-skip TestA, or add an exception with reason, approver, expiry"
 }
 
-test_vuln001_ignores_exceptions if {
-	inp := gate_input(good_report, [finding("CVE-1", "openssl", "CRITICAL")], [exception("CVE-1", "2026-12-31")])
+test_test003_fails_with_expired_exception if {
+	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-10-01")])
 	deny := evidencegate.deny with input as inp
-	"VULN-001" in fired(deny)
+	"TEST-003" in fired(deny)
 }
 
-test_vuln001_without_fixed_version if {
-	f := object.union(finding("CVE-1", "openssl", "CRITICAL"), {"fixed_version": ""})
-	inp := gate_input(good_report, [f], [])
+test_test003_fails_when_exception_expires_today if {
+	inp := gate_input(skipped(["TestA"]), [exception("TestA", "2026-10-19")])
 	deny := evidencegate.deny with input as inp
-	some v in deny
-	v.rule == "VULN-001"
-	v.fix == "no fixed version of openssl yet: remove or replace it"
+	"TEST-003" in fired(deny)
 }
 
-# VULN-002
-
-test_vuln002_passes_with_valid_exception if {
-	inp := gate_input(good_report, [finding("CVE-1", "libxml2", "HIGH")], [exception("CVE-1", "2026-12-31")])
+test_test003_exception_for_other_test_does_not_count if {
+	inp := gate_input(skipped(["TestA"]), [exception("TestB", "2026-12-31")])
 	deny := evidencegate.deny with input as inp
-	not "VULN-002" in fired(deny)
+	"TEST-003" in fired(deny)
 }
 
-test_vuln002_fails_without_exception if {
-	inp := gate_input(good_report, [finding("CVE-1", "libxml2", "HIGH")], [])
+test_test003_one_violation_per_unexcepted_skip if {
+	inp := gate_input(skipped(["TestA", "TestB", "TestC"]), [exception("TestB", "2026-12-31")])
 	deny := evidencegate.deny with input as inp
-	some v in deny
-	v.rule == "VULN-002"
-	v.fix == "upgrade libxml2 to >= 1.0.1, or add an exception with reason, approver, expiry"
+	count({v | some v in deny; v.rule == "TEST-003"}) == 2
 }
 
-test_vuln002_fails_with_expired_exception if {
-	inp := gate_input(good_report, [finding("CVE-1", "libxml2", "HIGH")], [exception("CVE-1", "2026-10-01")])
+test_exceptions_do_not_waive_failed_tests if {
+	inp := gate_input(report(1, ["TestA"], 85), [exception("TestA", "2026-12-31")])
 	deny := evidencegate.deny with input as inp
-	"VULN-002" in fired(deny)
-}
-
-test_vuln002_fails_when_exception_expires_today if {
-	inp := gate_input(good_report, [finding("CVE-1", "libxml2", "HIGH")], [exception("CVE-1", "2026-10-19")])
-	deny := evidencegate.deny with input as inp
-	"VULN-002" in fired(deny)
-}
-
-test_vuln002_exception_for_other_cve_does_not_count if {
-	inp := gate_input(good_report, [finding("CVE-1", "libxml2", "HIGH")], [exception("CVE-2", "2026-12-31")])
-	deny := evidencegate.deny with input as inp
-	"VULN-002" in fired(deny)
+	"TEST-001" in fired(deny)
 }
