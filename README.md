@@ -14,6 +14,27 @@ Every pull request to this repo runs these steps in GitHub Actions:
 
 Exit codes: `0` pass, `1` policy failure, `2` invalid or missing evidence, or any other error.
 
+## Policies and waivers
+
+The rules are in [policies/gate.rego](policies/gate.rego). They are bundled into the binary; `check --policies dir` uses another directory.
+
+| ID       | Rule                                                              | Fix hint                |
+| -------- | ----------------------------------------------------------------- | ----------------------- |
+| TEST-001 | no failed tests; a package that does not compile counts as failed | lists the failing tests |
+| TEST-002 | coverage >= 80%                                                   | current vs required     |
+| TEST-003 | no skipped tests                                                  | lists the skipped tests |
+
+A waiver lets pull requests pass one rule until a date. It goes in an optional `waivers.json` next to the evidence; in this repo that is `demo-app/waivers.json`:
+
+```json
+[ { "rule": "TEST-002", "reason": "Receipt formatting ships before its tests, tests follow next sprint",
+    "approved_by": "qa-lead", "expires": "2026-11-30" } ]
+```
+
+- All four fields are required and checked by the schema.
+- A waiver covers every violation of its rule, on every pull request, until `expires`. On that date it no longer applies.
+- Waived violations are never shown as a pass: they get a ⚠ row in the output and job summary, and a `waived` list in `--json`.
+
 ## See it in action
 
 Four demo pull requests, left open on purpose. Open the `gate` check on each to see the job summary.
@@ -22,7 +43,7 @@ Four demo pull requests, left open on purpose. Open the `gate` check on each to 
 | ----------------------------------------------------- | -------------------------------------------------- | ------------------- |
 | [#1](https://github.com/vildande/evidence-gate/pull/1) | breaks one test assertion                          | FAIL on TEST-001    |
 | [#2](https://github.com/vildande/evidence-gate/pull/2) | adds an untested function, coverage drops to 73.8% | FAIL on TEST-002    |
-| [#3](https://github.com/vildande/evidence-gate/pull/3) | same code as #2, plus a waiver for TEST-002        | PASS, 1 rule waived |
+| [#3](https://github.com/vildande/evidence-gate/pull/3) | same code as#2, plus a waiver for TEST-002         | PASS, 1 rule waived |
 | [#4](https://github.com/vildande/evidence-gate/pull/4) | adds a discount code with tests                    | PASS                |
 
 ## What the gate prints
@@ -88,9 +109,27 @@ RESULT: PASS
 evidence sha256: test-report cbf5...82
 ```
 
-## Run it locally
+## CI workflows
 
-The same steps as the `gate` job, from the repo root. Needs Go 1.27 or newer.
+| File                                        | What it does                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ci.yml](.github/workflows/ci.yml)           | Runs on every pull request and push to`main`. Job `tool` tests evidence-gate itself: `go vet`, `go test`, `opa test`, and checks that the samples exit 0, 1 and 2. Job `gate` runs the `demo-app` tests, collects the evidence, runs the gate and uploads the evidence as a build artifact. |
+| [action.yml](action.yml)                     | Used by the`gate` job with `uses: ./`. Sets up Go, builds evidence-gate, runs `check` on the evidence and writes the result to the job summary. Exit 1 or 2 fails the job.                                                                                                                          |
+| [release.yml](.github/workflows/release.yml) | Runs on a version tag. Builds binaries for macOS, Linux and Windows, publishes them as a[GitHub Release](https://github.com/vildande/evidence-gate/releases) and moves the `v1` tag.                                                                                                                     |
+
+## Merge blocking (ruleset in GitHub repo)
+
+A failed check only blocks merging if the repository requires it. That's why `main` branch has a repository ruleset that:
+
+- requires a pull request, so nobody pushes to `main` directly
+- requires the checks `tool` and `gate` to pass
+- blocks force pushes and deleting `main`
+
+This is why, for example, PRs #1 and #2 cannot be merged.
+
+## Run it locally (if you want to)
+
+You can do the same steps as the `gate` job, locally, from the repo root. Needs Go 1.27 or newer.
 
 ```bash
 rm -rf evidence && mkdir evidence
@@ -109,45 +148,6 @@ On `main` this passes. To try a demo pull request, switch to its branch first, f
 | `demo/coverage-drop`   | #2 | FAIL on TEST-002    |
 | `demo/coverage-waived` | #3 | PASS, 1 rule waived |
 | `demo/clean-feature`   | #4 | PASS                |
-
-## CI workflows
-
-| File                                        | What it does                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ci.yml](.github/workflows/ci.yml)           | Runs on every pull request and push to `main`. Job `tool` tests evidence-gate itself: `go vet`, `go test`, `opa test`, and checks that the samples exit 0, 1 and 2. Job `gate` runs the `demo-app` tests, collects the evidence, runs the gate and uploads the evidence as a build artifact. |
-| [action.yml](action.yml)                     | Used by the `gate` job with `uses: ./`. Sets up Go, builds evidence-gate, runs `check` on the evidence and writes the result to the job summary. Exit 1 or 2 fails the job.                                                                                                                       |
-| [release.yml](.github/workflows/release.yml) | Runs on a version tag. Builds binaries for macOS, Linux and Windows, publishes them as a [GitHub Release](https://github.com/vildande/evidence-gate/releases) and moves the `v1` tag.                                                                                                                    |
-
-## Merge blocking
-
-A failed check only blocks merging if the repository requires it. That's why `main` branch has a repository ruleset that:
-
-- requires a pull request, so nobody pushes to `main` directly
-- requires the checks `tool` and `gate` to pass
-- blocks force pushes and deleting `main`
-
-This is why, for example, PRs #1 and #2 cannot be merged.
-
-## Policies and waivers
-
-The rules are in [policies/gate.rego](policies/gate.rego). They are bundled into the binary; `check --policies dir` uses another directory.
-
-| ID       | Rule                                                              | Fix hint                |
-| -------- | ----------------------------------------------------------------- | ----------------------- |
-| TEST-001 | no failed tests; a package that does not compile counts as failed | lists the failing tests |
-| TEST-002 | coverage >= 80%                                                   | current vs required     |
-| TEST-003 | no skipped tests                                                  | lists the skipped tests |
-
-A waiver lets pull requests pass one rule until a date. It goes in an optional `waivers.json` next to the evidence; in this repo that is `demo-app/waivers.json`:
-
-```json
-[ { "rule": "TEST-002", "reason": "Receipt formatting ships before its tests, tests follow next sprint",
-    "approved_by": "qa-lead", "expires": "2026-11-30" } ]
-```
-
-- All four fields are required and checked by the schema.
-- A waiver covers every violation of its rule, on every pull request, until `expires`. On that date it no longer applies.
-- Waived violations are never shown as a pass: they get a ⚠ row in the output and job summary, and a `waived` list in `--json`.
 
 ## License
 
