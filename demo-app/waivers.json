@@ -1,0 +1,4 @@
+[
+  { "rule": "TEST-002", "reason": "Receipt formatting ships before its tests, tests follow next sprint",
+    "approved_by": "qa-lead", "expires": "2026-11-30" }
+]

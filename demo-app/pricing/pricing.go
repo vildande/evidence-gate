@@ -94,3 +94,23 @@ func Calculate(o Order) (Quote, error) {
 func percentOf(cents, percent int64) int64 {
 	return (cents*percent + 50) / 100
 }
+
+// plain text receipt for an order and its quote
+func Receipt(o Order, q Quote) string {
+	var sb strings.Builder
+	for _, it := range o.Items {
+		fmt.Fprintf(&sb, "%-12s %3d x %s\n", it.SKU, it.Quantity, formatCents(it.UnitPriceCents))
+	}
+	fmt.Fprintf(&sb, "subtotal %s\n", formatCents(q.SubtotalCents))
+	if q.DiscountCents > 0 {
+		fmt.Fprintf(&sb, "discount -%s\n", formatCents(q.DiscountCents))
+	}
+	fmt.Fprintf(&sb, "VAT      %s\n", formatCents(q.VATCents))
+	fmt.Fprintf(&sb, "total    %s\n", formatCents(q.TotalCents))
+	return sb.String()
+}
+
+// 1999 -> "19.99"
+func formatCents(c int64) string {
+	return fmt.Sprintf("%d.%02d", c/100, c%100)
+}
