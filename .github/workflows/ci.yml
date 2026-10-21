@@ -1,0 +1,86 @@
+name: CI
+
+# no path filters: required checks must report on every PR
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # evidence-gate itself
+  tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - run: go vet ./...
+
+      - run: go test ./...
+
+      - uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.21.3
+
+      - run: opa test policies/
+
+      - name: Samples exit with 0, 1, 2
+        run: |
+          go build -o "$RUNNER_TEMP/evidence-gate" ./cmd/evidence-gate
+          for c in pass:0 fail:1 invalid:2; do
+            dir=${c%:*}
+            want=${c#*:}
+            code=0
+            "$RUNNER_TEMP/evidence-gate" check --evidence "samples/$dir" || code=$?
+            if [ "$code" != "$want" ]; then
+              echo "samples/$dir: exit $code, want $want"
+              exit 1
+            fi
+          done
+
+  # the gate on demo-app, with evidence from this run
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # root go.mod and go.sum, so the build in the action below is cached too
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # a test failure must not stop the job here, the gate decides
+      - name: Test demo-app
+        working-directory: demo-app
+        run: |
+          mkdir -p ../evidence
+          go test -json -coverprofile=../evidence/coverage.out ./... > ../evidence/test.json || true
+
+      - name: Collect evidence
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          go run ./cmd/evidence-gate collect --test-json evidence/test.json --coverage evidence/coverage.out \
+            --project demo-app --commit "$COMMIT" --out evidence/test-report.json
+          if [ -f demo-app/waivers.json ]; then
+            cp demo-app/waivers.json evidence/
+          fi
+
+      - name: Gate
+        uses: ./
+        with:
+          evidence: evidence
+
+      # also when the gate failed: the evidence explains why
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence
+          path: evidence/
