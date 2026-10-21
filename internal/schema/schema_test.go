@@ -33,17 +33,17 @@ func readSample(t *testing.T, dir, file string) []byte {
 ///////////////////////
 // Tests (count = 11)//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TestValidSamplesHaveNoIssues — checks that pass and fail JSON files are valid.
-// TestWaiversAreValidatedOnlyWhenPresent — checks that waivers.json is processed when present, and not processed when absent.
-// TestMissingRequiredFileIsAnIssue — checks that missing required files produce "file is missing" issues.
-// TestMissingDirIsAnError — checks that a nonexistent directory returns the correct error.
-// TestFileInsteadOfDirIsAnError — checks that ValidateDir rejects a file instead of a directory.
-// TestExpiresMustBeACalendarDate — checks that expires accepts valid calendar dates and rejects invalid ones.
-// TestWaiverRuleMustBeARuleID — checks that a waiver rule must look like "TEST-002".
-// TestInvalidSamplesReportEachProblem — checks that invalid samples report issues at expected JSON value paths.
-// TestMissingCommitIsNamed — checks that a missing "commit" field is reported explicitly.
-// TestMalformedJSONIsAnIssue — checks that malformed JSON produces a validation issue, not a generic error.
-// TestUnknownFileIsAnError — checks that files without a registered schema return an error.
+// TestValidSamplesHaveNoIssues - checks that pass and fail JSON files are valid.
+// TestWaiversAreValidatedOnlyWhenPresent - checks that waivers.json is processed when present, and not processed when absent.
+// TestMissingRequiredFileIsAnIssue - checks that missing required files produce "file is missing" issues.
+// TestMissingDirIsAnError - checks that a nonexistent directory returns the correct error.
+// TestFileInsteadOfDirIsAnError - checks that ValidateDir rejects a file instead of a directory.
+// TestExpiresMustBeACalendarDate - checks that expires accepts valid calendar dates and rejects invalid ones.
+// TestWaiverRuleMustBeARuleID - checks that a waiver rule must look like "TEST-002".
+// TestInvalidSamplesReportEachProblem - checks that invalid samples report issues at expected JSON value paths.
+// TestMissingCommitIsNamed - checks that a missing "commit" field is reported explicitly.
+// TestMalformedJSONIsAnIssue - checks that malformed JSON produces a validation issue, not a generic error.
+// TestUnknownFileIsAnError - checks that files without a registered schema return an error.
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 

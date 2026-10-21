@@ -61,18 +61,18 @@ func evalModules(t *testing.T, modules map[string]string) (Result, error) {
 	return e.Eval(context.Background(), Input{Now: today})
 }
 
-// TestRegoUnitTests — runs policies/gate_test.rego through the OPA SDK, same as `opa test policies/`.
-// TestLoadDirSkipsTestFiles — checks that *_test.rego files are not loaded as policies.
-// TestLoadDirWithoutPoliciesIsAnError — checks that an empty policy directory is an error, not a silent PASS.
-// TestPassSampleIsWaived — checks that samples/pass passes, with its TEST-003 violation listed as waived.
-// TestFailSampleViolations — checks that samples/fail fails TEST-001, TEST-002 and TEST-003 with fix hints.
-// TestExpiredWaiverBlocks — checks that the pass sample fails TEST-003 once its waiver has expired.
-// TestCompileErrorNamesTheFile — checks that a broken module fails to compile with its file name in the error.
-// TestMissingDenyIsAnError — checks that policies without deny rules are an error, not a silent PASS.
-// TestMissingWaivedIsAnError — checks that policies without a waived set are an error.
-// TestMissingRulesIsAnError — checks that policies without a rules list are an error.
-// TestBundledPoliciesMatchDir — checks that the policies embedded in the binary are the ones in policies/.
-// TestBadDenyShapeIsAnError — checks that a deny entry that is not an object is rejected.
+// TestRegoUnitTests - runs policies/gate_test.rego through the OPA SDK, same as `opa test policies/`.
+// TestLoadDirSkipsTestFiles - checks that *_test.rego files are not loaded as policies.
+// TestLoadDirWithoutPoliciesIsAnError - checks that an empty policy directory is an error, not a silent PASS.
+// TestPassSampleIsWaived - checks that samples/pass passes, with its TEST-003 violation listed as waived.
+// TestFailSampleViolations - checks that samples/fail fails TEST-001, TEST-002 and TEST-003 with fix hints.
+// TestExpiredWaiverBlocks - checks that the pass sample fails TEST-003 once its waiver has expired.
+// TestCompileErrorNamesTheFile - checks that a broken module fails to compile with its file name in the error.
+// TestMissingDenyIsAnError - checks that policies without deny rules are an error, not a silent PASS.
+// TestMissingWaivedIsAnError - checks that policies without a waived set are an error.
+// TestMissingRulesIsAnError - checks that policies without a rules list are an error.
+// TestBundledPoliciesMatchDir - checks that the policies embedded in the binary are the ones in policies/.
+// TestBadDenyShapeIsAnError - checks that a deny entry that is not an object is rejected.
 
 func TestRegoUnitTests(t *testing.T) {
 	results, err := tester.Run(context.Background(), policiesDir)
@@ -120,7 +120,7 @@ func TestPassSampleIsWaived(t *testing.T) {
 	if !slices.Equal(res.Waived, want) {
 		t.Errorf("waived\ngot  %v\nwant %v", res.Waived, want)
 	}
-	if res.Rules["TEST-002"] != "coverage 88.2% (≥ 80%)" || len(res.Rules) != 3 {
+	if res.Rules["TEST-002"] != "coverage 88.2% (>= 80%)" || len(res.Rules) != 3 {
 		t.Errorf("rules: got %v", res.Rules)
 	}
 }

@@ -8,17 +8,17 @@ import (
 	"testing"
 )
 
-// TestCheckExitCodes — checks exit codes 0/1/2 on the pass, fail and invalid samples, and on a missing dir.
-// TestCheckPassShowsWaiver — checks that samples/pass passes with its TEST-003 waiver visible.
-// TestCheckFailShowsFixes — checks that samples/fail lists every failed rule with a fix hint.
-// TestCheckJSON — checks that --json prints valid JSON with the result and evidence hashes.
-// TestCheckSummaryAppends — checks that --summary appends Markdown instead of overwriting the file.
-// TestCheckPoliciesDir — checks that --policies loads policies from a directory.
-// TestCheckBrokenPolicyIsAnError — checks that a policy that does not compile exits 2.
-// TestCollectThenCheck — checks the full flow: collect writes a report that check accepts (pass, fail, build failure).
-// TestCollectErrors — checks that missing flags and unreadable inputs exit 2.
-// TestUsageErrors — checks exit codes for no command, unknown command, missing --evidence and -h.
-// TestVersion — checks that version prints the version.
+// TestCheckExitCodes - checks exit codes 0/1/2 on the pass, fail and invalid samples, and on a missing dir.
+// TestCheckPassShowsWaiver - checks that samples/pass passes with its TEST-003 waiver visible.
+// TestCheckFailShowsFixes - checks that samples/fail lists every failed rule with a fix hint.
+// TestCheckJSON - checks that --json prints valid JSON with the result and evidence hashes.
+// TestCheckSummaryAppends - checks that --summary appends Markdown instead of overwriting the file.
+// TestCheckPoliciesDir - checks that --policies loads policies from a directory.
+// TestCheckBrokenPolicyIsAnError - checks that a policy that does not compile exits 2.
+// TestCollectThenCheck - checks the full flow: collect writes a report that check accepts (pass, fail, build failure).
+// TestCollectErrors - checks that missing flags and unreadable inputs exit 2.
+// TestUsageErrors - checks exit codes for no command, unknown command, missing --evidence and -h.
+// TestVersion - checks that version prints the version.
 
 func sample(name string) string {
 	return filepath.Join("..", "..", "samples", name)
@@ -54,8 +54,8 @@ func TestCheckPassShowsWaiver(t *testing.T) {
 	_, stdout, _ := runCLI(t, "check", "--evidence", sample("pass"))
 	for _, line := range []string{
 		"evidence-gate dev | demo-app\n",
-		"✓ TEST-002 coverage 88.2% (≥ 80%)\n",
-		"⚠ TEST-003 1 skipped test(s) — waived by qa-lead until 2099-12-31: Rates API sandbox is down, tracked in #12\n",
+		"✓ TEST-002 coverage 88.2% (>= 80%)\n",
+		"⚠ TEST-003 1 skipped test(s), waived by qa-lead until 2099-12-31: Rates API sandbox is down, tracked in #12\n",
 		"RESULT: PASS (1 rule waived)\n",
 		"evidence sha256: test-report ",
 	} {

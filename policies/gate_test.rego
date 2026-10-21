@@ -42,7 +42,7 @@ test_rules_list_every_rule if {
 	rules := evidencegate.rules with input as inp
 	rules == {
 		"TEST-001": "no failed tests",
-		"TEST-002": "coverage 85% (≥ 80%)",
+		"TEST-002": "coverage 85% (>= 80%)",
 		"TEST-003": "no skipped tests",
 	}
 }

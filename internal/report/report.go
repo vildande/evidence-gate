@@ -170,19 +170,19 @@ func resultLine(r Report) string {
 	return "RESULT: " + r.Result()
 }
 
-// "test-report 9a1f…c3 · waivers 4be0…7d"
+// "test-report 9a1f...c3 | waivers 4be0...7d"
 func evidenceLine(r Report) string {
 	var parts []string
 	for _, e := range r.Evidence {
 		parts = append(parts, strings.TrimSuffix(e.File, ".json")+" "+audit.Short(e.SHA256))
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, " | ")
 }
 
 func header(r Report) string {
 	h := "evidence-gate " + r.Version
 	if r.Project != "" {
-		h += " · " + r.Project
+		h += " | " + r.Project
 	}
 	return h
 }
@@ -221,7 +221,7 @@ func WriteText(w io.Writer, r Report, color bool) error {
 		switch rw.status {
 		case rowWaived:
 			// on one line, so a waived rule never looks like a plain pass
-			fmt.Fprintf(&sb, "%s %-8s %s — %s\n", sym, rw.label, rw.text, rw.notes[0])
+			fmt.Fprintf(&sb, "%s %-8s %s, %s\n", sym, rw.label, rw.text, rw.notes[0])
 		default:
 			fmt.Fprintf(&sb, "%s %-8s %s\n", sym, rw.label, rw.text)
 			for _, n := range rw.notes {
@@ -302,7 +302,7 @@ func WriteMarkdown(w io.Writer, r Report) error {
 		cell := escape(rw.text)
 		for _, n := range rw.notes {
 			if rw.status == rowWaived {
-				cell += " — " + escape(n)
+				cell += ", " + escape(n)
 			} else {
 				cell += "<br>" + escape(n)
 			}

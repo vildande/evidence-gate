@@ -34,10 +34,10 @@ func Policies(modules map[string]string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// short form for humans: "9a1f…c3"
+// short form for humans: "9a1f...c3"
 func Short(hash string) string {
 	if len(hash) <= 6 {
 		return hash
 	}
-	return hash[:4] + "…" + hash[len(hash)-2:]
+	return hash[:4] + "..." + hash[len(hash)-2:]
 }

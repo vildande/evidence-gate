@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// TestCalculate — checks subtotal, discount, VAT and total for valid orders.
-// TestCalculateErrors — checks that invalid orders return the matching validation error.
+// TestCalculate - checks subtotal, discount, VAT and total for valid orders.
+// TestCalculateErrors - checks that invalid orders return the matching validation error.
 
 func TestCalculate(t *testing.T) {
 	tests := []struct {

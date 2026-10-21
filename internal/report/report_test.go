@@ -10,17 +10,17 @@ import (
 	"github.com/vildande/evidence-gate/internal/schema"
 )
 
-// TestTextFail — checks the full text output of a failing check, as in the spec.
-// TestTextWaivedPass — checks that a waived rule is shown with ⚠ and the result counts it.
-// TestTextInvalid — checks that schema issues are listed and policies are not shown.
-// TestTextColorOnlyWhenAsked — checks that ANSI colors appear only with color=true.
-// TestJSON — checks the JSON fields, including empty lists instead of null.
-// TestJSONInvalidListsSchemaErrors — checks that schema errors are in the JSON for INVALID.
-// TestMarkdown — checks the summary table rows and escaping.
+// TestTextFail - checks the full text output of a failing check, as in the spec.
+// TestTextWaivedPass - checks that a waived rule is shown with ⚠ and the result counts it.
+// TestTextInvalid - checks that schema issues are listed and policies are not shown.
+// TestTextColorOnlyWhenAsked - checks that ANSI colors appear only with color=true.
+// TestJSON - checks the JSON fields, including empty lists instead of null.
+// TestJSONInvalidListsSchemaErrors - checks that schema errors are in the JSON for INVALID.
+// TestMarkdown - checks the summary table rows and escaping.
 
 var rules = map[string]string{
 	"TEST-001": "no failed tests",
-	"TEST-002": "coverage 86.1% (≥ 80%)",
+	"TEST-002": "coverage 86.1% (>= 80%)",
 	"TEST-003": "no skipped tests",
 }
 
@@ -73,11 +73,11 @@ func TestTextFail(t *testing.T) {
 ✓ schema   waivers.json
 ✗ TEST-001 1 failed test(s)
            fix: fix failing tests: TestQuoteDiscount
-✓ TEST-002 coverage 86.1% (≥ 80%)
+✓ TEST-002 coverage 86.1% (>= 80%)
 ✓ TEST-003 no skipped tests
 
 RESULT: FAIL (1 of 3 rules failed)
-evidence sha256: test-report 9a1f…c3 | waivers 4be0…7d
+evidence sha256: test-report 9a1f...c3 | waivers 4be0...7d
 `
 	if got := text(t, failReport(), false); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
@@ -91,7 +91,7 @@ func TestTextWaivedPass(t *testing.T) {
 	}
 	got := text(t, r, false)
 	for _, line := range []string{
-		"⚠ TEST-002 coverage 75% (< 80%) — waived by qa-lead until 2026-10-27: new HTTP client, tests in #14\n",
+		"⚠ TEST-002 coverage 75% (< 80%), waived by qa-lead until 2026-10-27: new HTTP client, tests in #14\n",
 		"✓ TEST-001 no failed tests\n",
 		"RESULT: PASS (1 rule waived)\n",
 	} {
@@ -119,7 +119,7 @@ func TestTextInvalid(t *testing.T) {
            /coverage_percent: must be <= 100
 
 RESULT: INVALID (evidence does not match the schema)
-evidence sha256: test-report 9a1f…c3
+evidence sha256: test-report 9a1f...c3
 `
 	if got := text(t, r, false); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
@@ -200,7 +200,7 @@ func TestMarkdown(t *testing.T) {
 		"### evidence-gate v1.0.0 | demo-app\n",
 		"| ✓ | schema | test-report.json |\n",
 		"| ✗ | TEST-001 | a \\| b<br>fix: do x |\n",
-		"| ⚠ | TEST-002 | coverage 75% (&lt; 80%) — waived by qa-lead until 2026-10-27: new HTTP client, tests in #14 |\n",
+		"| ⚠ | TEST-002 | coverage 75% (&lt; 80%), waived by qa-lead until 2026-10-27: new HTTP client, tests in #14 |\n",
 		"| ✓ | TEST-003 | no skipped tests |\n",
 		"**RESULT: FAIL (1 of 3 rules failed, 1 rule waived)**\n",
 	} {

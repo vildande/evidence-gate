@@ -11,10 +11,10 @@ import (
 	"github.com/vildande/evidence-gate/demo-app/pricing"
 )
 
-// TestQuote — checks that a valid order returns 200 and the calculated quote.
-// TestQuoteBadRequests — checks status codes and error bodies for invalid requests.
-// TestHealthz — checks that the health endpoint returns 200.
-// TestStatusForUnknownError — checks that a non-validation error maps to 500.
+// TestQuote - checks that a valid order returns 200 and the calculated quote.
+// TestQuoteBadRequests - checks status codes and error bodies for invalid requests.
+// TestHealthz - checks that the health endpoint returns 200.
+// TestStatusForUnknownError - checks that a non-validation error maps to 500.
 
 // send a request to the app and return the recorded response
 func do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {

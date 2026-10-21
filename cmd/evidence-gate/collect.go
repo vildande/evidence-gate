@@ -41,7 +41,7 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 	}
 
 	s := r.Summary
-	fmt.Fprintf(stdout, "✓ collect %s @ %s: %d tests (%d passed, %d failed, %d skipped), coverage %v%% → %s\n",
+	fmt.Fprintf(stdout, "✓ collect %s @ %s: %d tests (%d passed, %d failed, %d skipped), coverage %v%%, wrote %s\n",
 		r.Project, r.Commit, s.Total, s.Passed, s.Failed, s.Skipped, r.CoveragePercent, *out)
 	return exitPass
 }

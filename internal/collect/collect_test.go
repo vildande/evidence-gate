@@ -10,16 +10,16 @@ import (
 	"github.com/vildande/evidence-gate/internal/schema"
 )
 
-// TestParseTestsCountsLeafTests — checks that parents with subtests are not counted twice.
-// TestParseTestsFailedSubtest — checks that a failed subtest is listed, not its parent.
-// TestParseTestsParentFailsOnItsOwn — checks that a parent failing without a failed subtest is listed.
-// TestParseTestsSkip — checks that skipped tests are counted and listed.
-// TestParseTestsBuildFailure — checks that a package that does not compile becomes a failed entry.
-// TestParseTestsSameNameInTwoPackages — checks that test names include the package.
-// TestParseTestsErrors — checks that empty input and non-JSON lines are errors.
-// TestCoverage — checks the percentage, rounding and duplicate blocks.
-// TestCoverageErrors — checks that malformed profiles are errors.
-// TestBuildMatchesSchema — checks that a built report passes the test-report schema.
+// TestParseTestsCountsLeafTests - checks that parents with subtests are not counted twice.
+// TestParseTestsFailedSubtest - checks that a failed subtest is listed, not its parent.
+// TestParseTestsParentFailsOnItsOwn - checks that a parent failing without a failed subtest is listed.
+// TestParseTestsSkip - checks that skipped tests are counted and listed.
+// TestParseTestsBuildFailure - checks that a package that does not compile becomes a failed entry.
+// TestParseTestsSameNameInTwoPackages - checks that test names include the package.
+// TestParseTestsErrors - checks that empty input and non-JSON lines are errors.
+// TestCoverage - checks the percentage, rounding and duplicate blocks.
+// TestCoverageErrors - checks that malformed profiles are errors.
+// TestBuildMatchesSchema - checks that a built report passes the test-report schema.
 
 const pkg = "example.com/app/pricing"
 

@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-// TestFile — checks the SHA-256 of a file against a known value.
-// TestFileMissingIsAnError — checks that a missing file returns an error.
-// TestPoliciesIsStable — checks that the policy hash ignores map order and changes with names or content.
-// TestShort — checks the short "9a1f…c3" form.
+// TestFile - checks the SHA-256 of a file against a known value.
+// TestFileMissingIsAnError - checks that a missing file returns an error.
+// TestPoliciesIsStable - checks that the policy hash ignores map order and changes with names or content.
+// TestShort - checks the short "9a1f...c3" form.
 
 func TestFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "hello.txt")
@@ -48,7 +48,7 @@ func TestPoliciesIsStable(t *testing.T) {
 }
 
 func TestShort(t *testing.T) {
-	if got := Short("9a1f0000000000c3"); got != "9a1f…c3" {
+	if got := Short("9a1f0000000000c3"); got != "9a1f...c3" {
 		t.Errorf("got %q", got)
 	}
 	if got := Short("abc"); got != "abc" {
