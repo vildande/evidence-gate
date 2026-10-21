@@ -71,7 +71,7 @@ func TestCheckFailShowsFixes(t *testing.T) {
 		"✗ TEST-001 1 failed test(s)\n           fix: fix failing tests: TestCalculate/fixed_discount\n",
 		"✗ TEST-002 coverage 72% (< 80%)\n           fix: raise coverage from 72% to at least 80%\n",
 		"✗ TEST-003 1 skipped test(s)\n           fix: un-skip tests: TestQuoteLiveRates\n",
-		"RESULT: FAIL (3 of 3 rules failed)\n",
+		"RESULT: FAIL (3 of ", // not "3 of 3": adding a rule must not break this test
 	} {
 		if !strings.Contains(stdout, line) {
 			t.Errorf("missing %q in:\n%s", line, stdout)
@@ -177,8 +177,23 @@ func writeFile(t *testing.T, dir, name, content string) string {
 	return path
 }
 
+// a fixed one-rule policy, so the test doesn't depend on the rules in policies/
+const oneRulePolicy = `package evidencegate
+
+rules := {"TEST-001": "no failed tests"}
+
+deny contains {"rule": "TEST-001", "message": "failed tests", "fix": concat(", ", input.test_report.failed_tests)} if {
+	input.test_report.summary.failed > 0
+}
+
+waived := set()
+`
+
 func TestCollectThenCheck(t *testing.T) {
 	const pkg = "example.com/app"
+	policies := t.TempDir()
+	writeFile(t, policies, "gate.rego", oneRulePolicy)
+
 	tests := []struct {
 		name     string
 		testJSON string
@@ -198,14 +213,14 @@ func TestCollectThenCheck(t *testing.T) {
 			testJSON: `{"Action":"fail","Package":"` + pkg + `","Test":"TestA"}` + "\n" + `{"Action":"fail","Package":"` + pkg + `"}`,
 			profile:  "mode: set\na.go:1.1,2.1 9 1\na.go:3.1,4.1 1 0\n",
 			want:     exitFail,
-			wantLine: "fix: fix failing tests: app.TestA\n",
+			wantLine: "fix: app.TestA\n",
 		},
 		{
 			name:     "build failure",
 			testJSON: `{"Action":"fail","Package":"` + pkg + `","FailedBuild":"` + pkg + `"}`,
 			profile:  "mode: set\n",
 			want:     exitFail,
-			wantLine: "fix: fix failing tests: app [build failed]\n",
+			wantLine: "fix: app [build failed]\n",
 		},
 	}
 
@@ -222,7 +237,7 @@ func TestCollectThenCheck(t *testing.T) {
 				t.Fatalf("collect: exit %d\n%s%s", code, stdout, stderr)
 			}
 
-			code, stdout, stderr = runCLI(t, "check", "--evidence", evidence)
+			code, stdout, stderr = runCLI(t, "check", "--evidence", evidence, "--policies", policies)
 			if code != tt.want || !strings.Contains(stdout, tt.wantLine) {
 				t.Errorf("check: exit %d, want %d; want %q in:\n%s%s", code, tt.want, tt.wantLine, stdout, stderr)
 			}

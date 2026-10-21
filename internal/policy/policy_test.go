@@ -120,7 +120,7 @@ func TestPassSampleIsWaived(t *testing.T) {
 	if !slices.Equal(res.Waived, want) {
 		t.Errorf("waived\ngot  %v\nwant %v", res.Waived, want)
 	}
-	if res.Rules["TEST-002"] != "coverage 88.2% (>= 80%)" || len(res.Rules) != 3 {
+	if res.Rules["TEST-002"] != "coverage 88.2% (>= 80%)" {
 		t.Errorf("rules: got %v", res.Rules)
 	}
 }
