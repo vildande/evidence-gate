@@ -1,5 +1,5 @@
 // demo-app is a small HTTP service that prices orders.
-// it is the application evidence-gate protects in CI.
+// it is the application evidence-gate protects in CI (Github Actions)
 //
 //	POST /quote  {"items": [{"sku", "unit_price_cents", "quantity"}], "discount_code", "country"}
 //	          -> {"subtotal_cents", "discount_cents", "vat_cents", "total_cents"}

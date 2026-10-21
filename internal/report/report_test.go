@@ -67,7 +67,7 @@ func text(t *testing.T, r Report, color bool) string {
 }
 
 func TestTextFail(t *testing.T) {
-	want := `evidence-gate v1.0.0 · demo-app
+	want := `evidence-gate v1.0.0 | demo-app
 
 ✓ schema   test-report.json
 ✓ schema   waivers.json
@@ -77,7 +77,7 @@ func TestTextFail(t *testing.T) {
 ✓ TEST-003 no skipped tests
 
 RESULT: FAIL (1 of 3 rules failed)
-evidence sha256: test-report 9a1f…c3 · waivers 4be0…7d
+evidence sha256: test-report 9a1f…c3 | waivers 4be0…7d
 `
 	if got := text(t, failReport(), false); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
@@ -197,7 +197,7 @@ func TestMarkdown(t *testing.T) {
 	}
 	got := sb.String()
 	for _, line := range []string{
-		"### evidence-gate v1.0.0 · demo-app\n",
+		"### evidence-gate v1.0.0 | demo-app\n",
 		"| ✓ | schema | test-report.json |\n",
 		"| ✗ | TEST-001 | a \\| b<br>fix: do x |\n",
 		"| ⚠ | TEST-002 | coverage 75% (&lt; 80%) — waived by qa-lead until 2026-10-27: new HTTP client, tests in #14 |\n",

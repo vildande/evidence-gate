@@ -4,7 +4,7 @@
 //	evidence-gate check --evidence dir [--policies dir] [--json] [--summary file]
 //	evidence-gate version
 //
-// exit codes: 0 pass · 1 policy failure · 2 invalid or missing evidence, or any error
+// exit codes: 0 pass | 1 policy failure | 2 invalid or missing evidence, or any error
 package main
 
 import (

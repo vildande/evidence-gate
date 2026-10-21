@@ -53,7 +53,7 @@ func TestCheckExitCodes(t *testing.T) {
 func TestCheckPassShowsWaiver(t *testing.T) {
 	_, stdout, _ := runCLI(t, "check", "--evidence", sample("pass"))
 	for _, line := range []string{
-		"evidence-gate dev · demo-app\n",
+		"evidence-gate dev | demo-app\n",
 		"✓ TEST-002 coverage 88.2% (≥ 80%)\n",
 		"⚠ TEST-003 1 skipped test(s) — waived by qa-lead until 2099-12-31: Rates API sandbox is down, tracked in #12\n",
 		"RESULT: PASS (1 rule waived)\n",

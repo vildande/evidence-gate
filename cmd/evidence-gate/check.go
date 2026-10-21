@@ -66,7 +66,7 @@ func runCheck(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// schema → policy → report. policies are compiled first: a broken policy is an
+// schema -> policy -> report. policies are compiled first: a broken policy is an
 // error (exit 2) whatever the evidence says
 func check(ctx context.Context, evidenceDir, policiesDir string, now time.Time) (report.Report, error) {
 	modules, err := loadPolicies(policiesDir)
