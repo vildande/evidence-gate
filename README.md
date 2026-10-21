@@ -1,6 +1,6 @@
 # evidence-gate
 
-A CI gate that blocks a pull request unless its test evidence passes JSON Schema validation and Rego policies.
+A CI gate that blocks a pull request unless the tests of `demo-app` passes JSON Schema validation and Rego policies.
 
 ## How it works
 
