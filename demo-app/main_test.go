@@ -57,6 +57,7 @@ func TestQuoteBadRequests(t *testing.T) {
 		{"malformed JSON", http.MethodPost, `{"items": [`, http.StatusBadRequest, "invalid JSON"},
 		{"unknown field", http.MethodPost, `{"country": "DE", "quantiy": 1}`, http.StatusBadRequest, "unknown field"},
 		{"no items", http.MethodPost, `{"country": "DE", "items": []}`, http.StatusUnprocessableEntity, "no items"},
+		{"bulk discount too small", http.MethodPost, `{"country": "DE", "discount_code": "BULK15", "items": [{"sku": "A", "unit_price_cents": 1, "quantity": 1}]}`, http.StatusUnprocessableEntity, "too small"},
 		{"unknown country", http.MethodPost, `{"country": "XX", "items": [{"sku": "A", "unit_price_cents": 1, "quantity": 1}]}`, http.StatusUnprocessableEntity, "unknown country"},
 		{"wrong method", http.MethodGet, "", http.StatusMethodNotAllowed, ""},
 	}

@@ -43,6 +43,11 @@ func TestCalculate(t *testing.T) {
 			want:  Quote{SubtotalCents: 300, DiscountCents: 300, VATCents: 0, TotalCents: 0},
 		},
 		{
+			name:  "bulk discount with 10 items",
+			order: Order{Country: "DE", DiscountCode: "BULK15", Items: []Item{{SKU: "A", UnitPriceCents: 1000, Quantity: 10}}},
+			want:  Quote{SubtotalCents: 10000, DiscountCents: 1500, VATCents: 1615, TotalCents: 10115},
+		},
+		{
 			name:  "codes and countries are case-insensitive",
 			order: Order{Country: "it", DiscountCode: "welcome10", Items: []Item{{SKU: "A", UnitPriceCents: 1000, Quantity: 1}}},
 			want:  Quote{SubtotalCents: 1000, DiscountCents: 100, VATCents: 198, TotalCents: 1098},
@@ -82,6 +87,7 @@ func TestCalculateErrors(t *testing.T) {
 		{"no items", Order{Country: "DE"}, ErrNoItems},
 		{"unknown country", Order{Country: "XX", Items: []Item{item}}, ErrUnknownCountry},
 		{"unknown discount", Order{Country: "DE", DiscountCode: "FREE", Items: []Item{item}}, ErrUnknownDiscount},
+		{"bulk discount with 9 items", Order{Country: "DE", DiscountCode: "BULK15", Items: []Item{{SKU: "A", UnitPriceCents: 100, Quantity: 9}}}, ErrDiscountMinimum},
 		{"missing sku", Order{Country: "DE", Items: []Item{{UnitPriceCents: 100, Quantity: 1}}}, ErrInvalidItem},
 		{"zero quantity", Order{Country: "DE", Items: []Item{{SKU: "A", UnitPriceCents: 100}}}, ErrInvalidItem},
 		{"negative price", Order{Country: "DE", Items: []Item{{SKU: "A", UnitPriceCents: -1, Quantity: 1}}}, ErrInvalidItem},

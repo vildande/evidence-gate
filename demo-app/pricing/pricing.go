@@ -14,6 +14,7 @@ var (
 	ErrInvalidItem     = errors.New("invalid item")
 	ErrUnknownDiscount = errors.New("unknown discount code")
 	ErrUnknownCountry  = errors.New("unknown country")
+	ErrDiscountMinimum = errors.New("order too small for discount code")
 )
 
 // one order line
@@ -47,13 +48,15 @@ var vatRates = map[string]int64{
 
 // a discount is either a percentage or a fixed amount off the subtotal
 type discount struct {
-	percent int64
-	cents   int64
+	percent     int64
+	cents       int64
+	minQuantity int64 // items needed in the order, 0 = any order
 }
 
 var discounts = map[string]discount{
 	"WELCOME10": {percent: 10},
 	"FLAT5":     {cents: 500},
+	"BULK15":    {percent: 15, minQuantity: 10},
 }
 
 // calculate the quote. the discount is applied before VAT
@@ -68,17 +71,22 @@ func Calculate(o Order) (Quote, error) {
 	}
 
 	var q Quote
+	var quantity int64
 	for i, it := range o.Items {
 		if it.SKU == "" || it.Quantity <= 0 || it.UnitPriceCents < 0 {
 			return Quote{}, fmt.Errorf("%w: item %d needs a sku, quantity > 0 and price >= 0", ErrInvalidItem, i)
 		}
 		q.SubtotalCents += it.UnitPriceCents * it.Quantity
+		quantity += it.Quantity
 	}
 
 	if o.DiscountCode != "" {
 		d, ok := discounts[strings.ToUpper(o.DiscountCode)]
 		if !ok {
 			return Quote{}, fmt.Errorf("%w: %q", ErrUnknownDiscount, o.DiscountCode)
+		}
+		if quantity < d.minQuantity {
+			return Quote{}, fmt.Errorf("%w: %q needs %d items, order has %d", ErrDiscountMinimum, o.DiscountCode, d.minQuantity, quantity)
 		}
 		q.DiscountCents = percentOf(q.SubtotalCents, d.percent) + d.cents
 		q.DiscountCents = min(q.DiscountCents, q.SubtotalCents) // never below zero

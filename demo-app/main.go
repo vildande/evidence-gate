@@ -57,7 +57,7 @@ func handleQuote(w http.ResponseWriter, r *http.Request) {
 
 // validation errors are the client's fault (422), anything else is ours (500)
 func statusFor(err error) int {
-	for _, e := range []error{pricing.ErrNoItems, pricing.ErrInvalidItem, pricing.ErrUnknownDiscount, pricing.ErrUnknownCountry} {
+	for _, e := range []error{pricing.ErrNoItems, pricing.ErrInvalidItem, pricing.ErrUnknownDiscount, pricing.ErrUnknownCountry, pricing.ErrDiscountMinimum} {
 		if errors.Is(err, e) {
 			return http.StatusUnprocessableEntity
 		}
