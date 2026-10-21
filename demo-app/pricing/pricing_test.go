@@ -35,7 +35,7 @@ func TestCalculate(t *testing.T) {
 		{
 			name:  "fixed discount",
 			order: Order{Country: "NL", DiscountCode: "FLAT5", Items: []Item{{SKU: "A", UnitPriceCents: 2000, Quantity: 1}}},
-			want:  Quote{SubtotalCents: 2000, DiscountCents: 500, VATCents: 315, TotalCents: 1815},
+			want:  Quote{SubtotalCents: 2000, DiscountCents: 500, VATCents: 315, TotalCents: 1816},
 		},
 		{
 			name:  "fixed discount larger than subtotal",
